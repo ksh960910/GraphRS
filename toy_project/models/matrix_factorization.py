@@ -1,14 +1,16 @@
 from sklearn.metrics import mean_squared_error
 import numpy as np
 from tqdm import trange
+import heapq
 
 class MF:
 
-    def __init__(self, sparse_matrix, K, lr, beta, epochs):
+    def __init__(self, sparse_matrix, hidden_dim, K, lr, beta, epochs):
         """
         Arguments
         - sparse_matrix : user-item rating matrix
-        - K : number of latent dimensions
+        - hidden_dim : number of latent dimensions
+        - K : number of recommendations
         - lr : learning rate
         - beta : regularization parameter
         - epochs : num of epochs
@@ -16,6 +18,7 @@ class MF:
 
         self.sparse_matrix = sparse_matrix.fillna(0).to_numpy()
         self.item_n, self.user_n = sparse_matrix.shape
+        self.hidden_dim = hidden_dim
         self.K = K
         self.lr = lr
         self.beta = beta
@@ -24,8 +27,8 @@ class MF:
     def train(self):
         # user와 item의 latent feature 행렬 정규분포로 초기화
         # scale : 정규분포의 표준편차
-        self.I = np.random.normal(scale=1./self.K, size=(self.item_n, self.K))
-        self.U = np.random.normal(scale=1./self.K, size=(self.user_n, self.K))
+        self.I = np.random.normal(scale=1./self.hidden_dim, size=(self.item_n, self.hidden_dim))
+        self.U = np.random.normal(scale=1./self.hidden_dim, size=(self.user_n, self.hidden_dim))
 
         # bias 초기화
         self.item_bias = np.zeros(self.item_n)
@@ -76,6 +79,15 @@ class MF:
             + self.user_bias[np.newaxis:,]
             + self.I.dot(self.U.T)
         )
+
+    def get_recommendation(self):
+        pred_matrix = self.get_pred_matrix().T
+        recommendations = []
+        # user마다 K개 만큼의 predicted rating이 높은 아이템들의 index 구하기
+        for u in range(pred_matrix.shape[0]):
+            rec_idx = list(map(list(pred_matrix[u]).index, heapq.nlargest(self.K, pred_matrix[u])))
+            recommendations.append(rec_idx)
+        return np.array(recommendations)
 
     def evaluate(self):
         idx, jdx = self.sparse_matrix.nonzero()

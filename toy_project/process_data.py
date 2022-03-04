@@ -200,16 +200,23 @@ def movielens_to_matrix():
     indice = list(zip(idx, jdx))
     np.random.shuffle(indice)
     # train, val, test를 80/10/10의 비율로 나눔
-    for i,j in indice[:ratings.shape[0] // 10]:
-        val_set.append((i, j, sparse_matrix.iloc[i, j]))
-        sparse_matrix.iloc[i, j] = 0
+    val_sparse_matrix = sparse_matrix.copy()
+    test_sparse_matrix = sparse_matrix.copy()
+    #val_sparse_matrix = val_sparse_matrix.replace([1,2,3,4,5], 0).fillna(0)
+    test_sparse_matrix = test_sparse_matrix.replace([1,2,3,4,5], 0).fillna(0)
 
-    for i,j in indice[ratings.shape[0] // 10 : ratings.shape[0] // 5]:
+    # for i,j in indice[:ratings.shape[0] // 10]:
+    #     val_set.append((i, j, sparse_matrix.iloc[i, j]))
+    #     val_sparse_matrix.iloc[i,j] = sparse_matrix.iloc[i,j]
+    #     sparse_matrix.iloc[i, j] = 0
+
+    for i,j in indice[: ratings.shape[0] // 5]:
         test_set.append((i,j,sparse_matrix.iloc[i, j]))
+        test_sparse_matrix.iloc[i,j] = sparse_matrix.iloc[i,j]
         sparse_matrix.iloc[i, j] = 0
 
-    return ratings, sparse_matrix, val_set, test_set
-
+    # return ratings, sparse_matrix, val_sparse_matrix, test_sparse_matrix, val_set, test_set
+    return ratings, sparse_matrix, test_sparse_matrix, test_set
 
 if __name__=='__main__':
     # 위에서 만든 여러 데이터 전처리 여기서 함수 호출하여 사용
