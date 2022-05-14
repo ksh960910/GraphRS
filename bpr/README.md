@@ -53,6 +53,7 @@ We call the path for unzipped directory `$data_dir`.
 
 For basic usage, execute following command line to preprocess the data.
 It **randomly** split the whole dataset into two parts, training data and test data.
+I additionally dropped users with less than 10 interactions
 ```bash
 python preprocess.py --dataset ml-1m --data_dir $data_dir --output_data preprocessed/ml-1m.pickle
 python preprocess.py --dataset ml-20m --data_dir $data_dir --output_data preprocessed/ml-20m.pickle
