@@ -56,7 +56,7 @@ class Data(object):
     
     
     def create_adj_mat(self):
-        obs_adj_mat = self.R.todok()[:1000,:]
+        obs_adj_mat = self.R.todok()[:512,:]
         print('already create observed graph adjacency matrix', obs_adj_mat.shape)
         return obs_adj_mat.tocsr()
     
@@ -119,11 +119,13 @@ class sampled_graph_to_matrix(object):
         except Exception:
             try:
                 zeta = np.load(self.path + '/zeta/zeta_' + str(iteration+1) + '.npy')
-                sampled_graph = generate_graph.generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+                generate_graph.generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+                sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
             
             except Exception:
                 zeta = generate_graph.node_copying(iteration = iteration)
-                sampled_graph = generate_graph.generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+                generate_graph.generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+                sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
 
         
         self.n_users, self.n_items = 0, 0

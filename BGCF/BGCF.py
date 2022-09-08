@@ -3,13 +3,19 @@ import torch.nn as nn
 
 class BGCFLayer(nn.Module):
     # TODO : 초기함수에 positive/negative item 리스트를 받아서 각 positive/negative item들의 embedding이 output으로 나오게끔
-    def __init__(self, n_users, n_items, in_features, out_features, dropout = 0.2):
+    def __init__(self, n_users, n_items, args):
         super(BGCFLayer, self).__init__()
         self.n_users = n_users
         self.n_items = n_items
-        self.dropout = dropout
-        self.in_features = in_features      # 기존 노드의 embedding 차원수 
-        self.out_features = out_features    # 결과 weight의 embedding 차원수
+        self.in_features = args.embed_size      # 기존 노드의 embedding 차원수 
+        self.out_features = args.layer_size    # 결과 weight의 embedding 차원수
+
+        self.node_dropout = args.node_dropout
+        self.mess_dropout = args.mess_dropout
+        self.batch_size = args.batch_size
+        self.decay = args.regs
+
+
         
         initializer = nn.init.xavier_uniform_
         
@@ -38,8 +44,7 @@ class BGCFLayer(nn.Module):
                        + torch.norm(pos_items) ** 2
                        + torch.norm(neg_items) ** 2) / 2
         
-        emb_loss = regularizer / 1000
-        # emb_loss = self.decay * regularizer / self.batch_size  (최종)
+        emb_loss = self.decay * regularizer / self.batch_size
         
         mf_loss = torch.nan_to_num(mf_loss)
         emb_loss = torch.nan_to_num(emb_loss)
@@ -47,12 +52,10 @@ class BGCFLayer(nn.Module):
         return mf_loss+emb_loss, mf_loss, emb_loss
             
     
-    def forward(self, 
-                users, 
+    def forward(self,  
                 pos_items, 
                 neg_items, 
-                adj_matrix, 
-                obs_users, 
+                adj_matrix,
                 obs_pos_items, 
                 obs_neg_items, 
                 obs_adj_matrix, 

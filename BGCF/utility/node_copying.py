@@ -18,7 +18,7 @@ class generate_graph(object):
                     l = l.strip('\n').split(' ')
                     self.neighbor_dict[int(l[0])] = [int(i) for i in l[1:]]
                     self.user.append(int(l[0]))
-        self.user = self.user[:1000]
+        self.user = self.user[:512]
         
     def jaccard_index(self, u_i, u_j, neighbor_dict):
         u_i_neighbor = self.neighbor_dict[u_i]
