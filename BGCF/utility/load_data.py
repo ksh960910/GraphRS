@@ -14,7 +14,9 @@ class Data(object):
         # path : ml-1m
         
         self.n_users, self.n_items = 0, 0
+        self.n_train, self.n_test = 0, 0
         self.exist_users = []
+
         with open(train_file, 'r') as f:
             for l in f.readlines():
                 if len(l) > 0:
@@ -24,10 +26,11 @@ class Data(object):
                     self.exist_users.append(uid)
                     self.n_users = max(self.n_users, uid)
                     self.n_items = max(self.n_items, max(items))
+                    self.n_train += len(items)
 
         self.n_users+=1
         self.n_items+=1
-        print(self.n_users, self.n_items)
+        print('Observed data #user, #item : ',self.n_users, self.n_items)
 
         self.R = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
         self.train_items = {}
@@ -114,23 +117,27 @@ class sampled_graph_to_matrix(object):
         self.batch_size = batch_size
 
         try:
-            sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
+            zeta = zeta = np.load(self.path + '/zeta/zeta_' + str(iteration+1) + '.npy')
+            # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
 
         except Exception:
             try:
                 zeta = np.load(self.path + '/zeta/zeta_' + str(iteration+1) + '.npy')
-                generate_graph.generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
-                sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
+                generate_graph(self.path).generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+                # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
             
             except Exception:
-                zeta = generate_graph.node_copying(iteration = iteration)
-                generate_graph.generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
-                sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
-
+                zeta = generate_graph(self.path).node_copying(iteration = iteration)
+                generate_graph(self.path).generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+                # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
         
+        sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
+
         self.n_users, self.n_items = 0, 0
+        self.n_train, self.n_test = 0, 0
         self.exist_users = []
         self.neg_pools = {}
+        
         
         with open(sampled_graph, 'r') as f:
             for l in f.readlines():
@@ -141,10 +148,11 @@ class sampled_graph_to_matrix(object):
                     self.exist_users.append(uid)
                     self.n_users = max(self.n_users, uid)
                     self.n_items = max(self.n_items, max(items))
+                    self.n_train += len(items)
 
         self.n_users+=1
         self.n_items+=1
-        print(self.n_users, self.n_items)
+        print('Sampled graph #user, #item : ', self.n_users, self.n_items)
 
         self.R = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
         self.train_items = {}
