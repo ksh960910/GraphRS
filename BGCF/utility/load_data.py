@@ -59,7 +59,8 @@ class Data(object):
     
     
     def create_adj_mat(self):
-        obs_adj_mat = self.R.todok()[:512,:]
+        # obs_adj_mat = self.R.todok()[:128,:]
+        obs_adj_mat = self.R.todok()
         print('already create observed graph adjacency matrix', obs_adj_mat.shape)
         return obs_adj_mat.tocsr()
     

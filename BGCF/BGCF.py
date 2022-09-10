@@ -53,9 +53,11 @@ class BGCFLayer(nn.Module):
             
     
     def forward(self,  
+                users,
                 pos_items, 
                 neg_items, 
                 adj_matrix,
+                obs_users,
                 obs_pos_items, 
                 obs_neg_items, 
                 obs_adj_matrix, 
@@ -92,13 +94,13 @@ class BGCFLayer(nn.Module):
         for i in range(self.n_users):
             neighbor_num_user[i] = sum(adj_matrix[i])
         for j in range(self.n_items):
-            neighbor_num_item[i] = sum(adj_matrix.T[i])
+            neighbor_num_item[j] = sum(adj_matrix.T[j])
         # neighbor_num은 n_j에 해당하는 부분
         
         # h_tilde_2는 w_2와 곱해지는 부분
         h_tilde_2_user = torch.matmul(adj_matrix, item_emb)
         # h_tilde_2_user = torch.matmul(neighbor_num_user, h_tilde_2_user)
-        # 각 user의 neighbor의 수 만큼 item embedding에 곱해주는 과정
+        # (1 / 각 user의 neighbor의 수) 만큼 item embedding에 곱해주는 과정
         for i in range(neighbor_num_user.shape[0]):
             h_tilde_2_user[i] = (1 / neighbor_num_user[i]) * h_tilde_2_user[i]
         h_tilde_2_user = torch.matmul(h_tilde_2_user, w_2)
@@ -106,13 +108,14 @@ class BGCFLayer(nn.Module):
         # h_tilde_2_item = torch.matmul(neighbor_num_item, h_tilde_2_item)
         # 각 item의 neighbor의 수 만큼 user embedding에 곱해주는 과정
         for j in range(neighbor_num_item.shape[0]):
-            h_tilde_2_item[i] = (1 / neighbor_num_item[i]) * h_tilde_2_item[i]
+            h_tilde_2_item[j] = (1 / neighbor_num_item[j]) * h_tilde_2_item[j]
         h_tilde_2_item = torch.matmul(h_tilde_2_item, w_2)
         # h_tilde_2 = torch.cat((h_tilde_2_user, h_tilde_2_item), dim=0)
         
         h_tilde_sampled_user = torch.cat((h_tilde_1_user, h_tilde_2_user), dim=1)
         h_tilde_sampled_item = torch.cat((h_tilde_2_item, h_tilde_2_item), dim=1)
         
+        h_tilde_sampled_user = h_tilde_sampled_user[users,:]
         h_tilde_sampled_pos_item = h_tilde_sampled_item[pos_items,:]
         h_tilde_sampled_neg_item = h_tilde_sampled_item[neg_items,:]
         
@@ -126,7 +129,7 @@ class BGCFLayer(nn.Module):
         for i in range(self.n_users):
             obs_neighbor_num_user[i] = sum(obs_adj_matrix[i])
         for j in range(self.n_items):
-            obs_neighbor_num_item[i] = sum(obs_adj_matrix.T[i])
+            obs_neighbor_num_item[j] = sum(obs_adj_matrix.T[j])
         # neighbor_num은 n_j에 해당하는 부분
         
         # h_tilde_obs_user
@@ -138,9 +141,10 @@ class BGCFLayer(nn.Module):
         # h_tilde_obs_item
         h_tilde_obs_item = torch.matmul(obs_adj_matrix.T, user_emb)
         for j in range(obs_neighbor_num_item.shape[0]):
-            h_tilde_obs_item[i] = (1 / obs_neighbor_num_item[i]) * h_tilde_obs_item[i]
+            h_tilde_obs_item[j] = (1 / obs_neighbor_num_item[j]) * h_tilde_obs_item[j]
         h_tilde_obs_item = torch.sigmoid(torch.matmul(h_tilde_obs_item, w_obs))
         
+        h_tilde_obs_user = h_tilde_obs_user[obs_users,:]
         h_tilde_obs_pos_item = h_tilde_obs_item[obs_pos_items,:]
         h_tilde_obs_neg_item = h_tilde_obs_item[obs_neg_items,:]
         

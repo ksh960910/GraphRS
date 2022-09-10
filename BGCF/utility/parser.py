@@ -2,7 +2,7 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run BGCF')
-    parser.add_argument('--data_path', default='ml-1m', help = 'Input data path')
+    parser.add_argument('--path', default='ml-1m', help = 'Input data path')
 
     parser.add_argument('--dataset', default='movielens', help = 'Choose a dataset from {movielens, gowalla, amazon-book')
 
