@@ -14,38 +14,42 @@ if __name__ == '__main__':
 
     t0 = time()
 
-    n_users = Data(path = args.path, batch_size = args.batch_size).n_users
-    n_items = Data(path = args.path, batch_size = args.batch_size).n_items
-
-    
+    data = Data(path = args.path, batch_size = args.batch_size)
+    n_users, n_items = data.n_users, data.n_items
+    print(f'#users, #items : {n_users}, {n_items}')
 
     # 모델 정의
     model = BGCFLayer(n_users, n_items, args)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=5e-4)
 
+    obs_graph = Data(path = args.path, batch_size = args.batch_size)
+    obs_adj_matrix = obs_graph.get_adj_mat().toarray()
+    obs_adj_matrix = torch.Tensor(obs_adj_matrix)
+    print(obs_adj_matrix.shape)
+
     for epoch in range(1):
         loss, mf_loss, emb_loss = 0., 0., 0.
-
-        # obs_users, obs_pos_items, obs_neg_items = obs_graph.sample()
-        obs_graph = Data(path = args.path, batch_size = args.batch_size)
-        obs_adj_matrix = obs_graph.get_adj_mat().toarray()
-        obs_adj_matrix = torch.Tensor(obs_adj_matrix)
-        n_users, n_items = obs_adj_matrix.shape[0], obs_adj_matrix.shape[1]
 
         sampled_graph = sampled_graph_to_matrix(path = args.path, iteration = epoch, batch_size=args.batch_size)
         adj_matrix = sampled_graph.get_adj_mat().toarray()
         adj_matrix = torch.Tensor(adj_matrix)
-        # users, pos_items, neg_items = sampled_graph.sample()
 
-        print(sampled_graph.n_train)
-        n_batch = sampled_graph.n_train // args.batch_size + 1
-        print(f'n_batch : {n_batch}')
+        n_batch = n_users // args.batch_size + 1
+        print(n_batch)
 
-        break
-
-        for iteration in range(3): #n_batch
+        for iteration in range(n_batch): #n_batch
             t1 = time()
+
+            # obs_users, obs_pos_items, obs_neg_items = obs_graph.sample()
+            
+            obs_users, obs_pos_items, obs_neg_items = obs_graph.sample()
+            print(len(obs_users), len(obs_pos_items))
+
+            
+            users, pos_items, neg_items = sampled_graph.sample()
+
+            print('sampled : ', adj_matrix.shape, len(users), len(pos_items))
 
             obs_users, obs_pos_items, obs_neg_items = obs_graph.sample()
 
@@ -69,6 +73,7 @@ if __name__ == '__main__':
                                                                             pos_i_g_embeddings,
                                                                             neg_i_g_embeddings)
             
+            print(batch_loss, batch_mf_loss, batch_emb_loss)
             
             optimizer.zero_grad()
             batch_loss.backward()
@@ -78,8 +83,8 @@ if __name__ == '__main__':
             mf_loss += batch_mf_loss
             emb_loss += batch_emb_loss
             
-            print(f'iteration : {iteration+1} Train time : {time() - t1:.2f}')
-        print(f'Epoch : {epoch+1} Train time : {time() - t1:.2f} train loss : {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}')
+            print(f'iteration : {iteration+1} Train time : {time() - t1:.2f} train loss : {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}')
+        # print(f'Epoch : {epoch+1} Train time : {time() - t1:.2f} train loss : {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}')
 
             # if (epoch + 1) % 10 != 0:
             #     perf_str = f'Epoch {epoch}  {time() - t1 :.1f} : train loss == {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}'

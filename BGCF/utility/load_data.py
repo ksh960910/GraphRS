@@ -30,7 +30,7 @@ class Data(object):
 
         self.n_users+=1
         self.n_items+=1
-        print('Observed data #user, #item : ',self.n_users, self.n_items)
+        # print('Observed data #user, #item : ',self.n_users, self.n_items)
 
         self.R = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
         self.train_items = {}
@@ -153,7 +153,7 @@ class sampled_graph_to_matrix(object):
 
         self.n_users+=1
         self.n_items+=1
-        print('Sampled graph #user, #item : ', self.n_users, self.n_items)
+        # print('Sampled graph #user, #item : ', self.n_users, self.n_items)
 
         self.R = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
         self.train_items = {}

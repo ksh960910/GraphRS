@@ -33,11 +33,15 @@ class BGCFLayer(nn.Module):
         })
         
     def create_bpr_loss(self, users, pos_items, neg_items):
+        users = torch.nan_to_num(users)
+        pos_items = torch.nan_to_num(pos_items)
+        neg_items = torch.nan_to_num(neg_items)
+
         pos_scores = torch.sum(torch.mul(users, pos_items), axis=1)
         neg_scores = torch.sum(torch.mul(users, neg_items), axis=1)
         
         maxi = nn.LogSigmoid()(pos_scores - neg_scores)
-        
+
         mf_loss = -1 * torch.mean(maxi)
         
         regularizer = (torch.norm(users) ** 2
@@ -45,9 +49,6 @@ class BGCFLayer(nn.Module):
                        + torch.norm(neg_items) ** 2) / 2
         
         emb_loss = self.decay * regularizer / self.batch_size
-        
-        mf_loss = torch.nan_to_num(mf_loss)
-        emb_loss = torch.nan_to_num(emb_loss)
         
         return mf_loss+emb_loss, mf_loss, emb_loss
             
@@ -77,7 +78,7 @@ class BGCFLayer(nn.Module):
         score = torch.multiply(score, adj_matrix)
         
         for i in range(score.shape[0]):
-            norm = sum(score[i])
+            norm = torch.sum(score[i])
             normalized_score = score[i] / norm
             coef[i] = normalized_score
         # coef에다가 normalized된 최종적인 attention score 저장
@@ -92,9 +93,11 @@ class BGCFLayer(nn.Module):
         
         neighbor_num_user, neighbor_num_item = torch.zeros(self.n_users), torch.zeros(self.n_items)
         for i in range(self.n_users):
-            neighbor_num_user[i] = sum(adj_matrix[i])
+            # neighbor_num_user[i] = sum(adj_matrix[i])
+            neighbor_num_user[i] = torch.sum(adj_matrix[i])
         for j in range(self.n_items):
-            neighbor_num_item[j] = sum(adj_matrix.T[j])
+            # neighbor_num_item[j] = sum(adj_matrix.T[j])
+            neighbor_num_item[j] = torch.sum(adj_matrix.T[j])
         # neighbor_num은 n_j에 해당하는 부분
         
         # h_tilde_2는 w_2와 곱해지는 부분
@@ -127,9 +130,11 @@ class BGCFLayer(nn.Module):
         obs_neighbor_num_user, obs_neighbor_num_item = torch.zeros(self.n_users), torch.zeros(self.n_items)
         # 각 원소 = 각 node의 neighbor수
         for i in range(self.n_users):
-            obs_neighbor_num_user[i] = sum(obs_adj_matrix[i])
+            # obs_neighbor_num_user[i] = sum(obs_adj_matrix[i])
+            obs_neighbor_num_user[i] = torch.sum(obs_adj_matrix[i])
         for j in range(self.n_items):
-            obs_neighbor_num_item[j] = sum(obs_adj_matrix.T[j])
+            # obs_neighbor_num_item[j] = sum(obs_adj_matrix.T[j])
+            obs_neighbor_num_item[j] = torch.sum(obs_adj_matrix.T[j])
         # neighbor_num은 n_j에 해당하는 부분
         
         # h_tilde_obs_user
