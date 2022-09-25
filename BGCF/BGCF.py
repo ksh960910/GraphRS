@@ -141,21 +141,21 @@ class BGCFLayer(nn.Module):
         h_tilde_obs_user = torch.matmul(obs_adj_matrix, item_emb)
         for i in range(obs_neighbor_num_user.shape[0]):
             h_tilde_obs_user[i] = (1 / obs_neighbor_num_user[i]) * h_tilde_obs_user[i]
-        h_tilde_obs_user = torch.sigmoid(torch.matmul(h_tilde_obs_user, w_obs))
+        h_tilde_obs_user = torch.tanh(torch.matmul(h_tilde_obs_user, w_obs))
         
         # h_tilde_obs_item
         h_tilde_obs_item = torch.matmul(obs_adj_matrix.T, user_emb)
         for j in range(obs_neighbor_num_item.shape[0]):
             h_tilde_obs_item[j] = (1 / obs_neighbor_num_item[j]) * h_tilde_obs_item[j]
-        h_tilde_obs_item = torch.sigmoid(torch.matmul(h_tilde_obs_item, w_obs))
+        h_tilde_obs_item = torch.tanh(torch.matmul(h_tilde_obs_item, w_obs))
         
         h_tilde_obs_user = h_tilde_obs_user[obs_users,:]
         h_tilde_obs_pos_item = h_tilde_obs_item[obs_pos_items,:]
         h_tilde_obs_neg_item = h_tilde_obs_item[obs_neg_items,:]
         
         # Final embedding
-        h_tilde_user = torch.sigmoid(torch.cat((h_tilde_sampled_user, h_tilde_obs_user), dim=1))
-        h_tilde_pos_item = torch.sigmoid(torch.cat((h_tilde_sampled_pos_item, h_tilde_obs_pos_item), dim=1))
-        h_tilde_neg_item = torch.sigmoid(torch.cat((h_tilde_sampled_neg_item, h_tilde_obs_neg_item), dim=1))
+        h_tilde_user = torch.tanh(torch.cat((h_tilde_sampled_user, h_tilde_obs_user), dim=1))
+        h_tilde_pos_item = torch.tanh(torch.cat((h_tilde_sampled_pos_item, h_tilde_obs_pos_item), dim=1))
+        h_tilde_neg_item = torch.tanh(torch.cat((h_tilde_sampled_neg_item, h_tilde_obs_neg_item), dim=1))
         
         return h_tilde_user, h_tilde_pos_item, h_tilde_neg_item

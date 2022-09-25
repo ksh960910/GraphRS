@@ -2,6 +2,7 @@ import numpy as np
 import random
 import scipy.sparse as sp
 from time import time
+import copy
 from utility.node_copying import generate_graph
 
 # observed data로 sparse matrix 및 adjacency matrix 만들기
@@ -11,6 +12,7 @@ class Data(object):
         self.batch_size = batch_size
         
         train_file = path + '/train.txt'
+        test_file = path + '/test.txt'
         # path : ml-1m
         
         self.n_users, self.n_items = 0, 0
@@ -28,24 +30,48 @@ class Data(object):
                     self.n_items = max(self.n_items, max(items))
                     self.n_train += len(items)
 
+        with open(test_file, 'r') as f:
+            for l in f.readlines():
+                if len(l) > 0:
+                    l = l.strip('\n')
+                    try:
+                        items = [int(i) for i in l.split(' ')[1:]]
+                    except Exception:
+                        continue
+                    self.n_items = max(self.n_items, max(items))
+                    self.n_test = len(items)
+
         self.n_users+=1
         self.n_items+=1
         # print('Observed data #user, #item : ',self.n_users, self.n_items)
 
         self.R = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
-        self.train_items = {}
+        self.train_items, self.test_set = {}, {}
 
-        with open(train_file, 'r') as f:
-            for l in f.readlines():
-                if len(l)==0:
-                    break
-                l = l.strip('\n').split(' ')
-                uid, items = int(l[0]), [int(i) for i in l[1:]]
+        with open(train_file, 'r') as f_train:
+            with open(test_file, 'r') as f_test:
+                for l in f_train.readlines():
+                    if len(l)==0:
+                        break
+                    l = l.strip('\n').split(' ')
+                    uid, items = int(l[0]), [int(i) for i in l[1:]]
 
-                for i in items:
-                    self.R[uid, i] = 1
+                    for i in items:
+                        self.R[uid, i] = 1
 
-                self.train_items[uid] = items
+                    self.train_items[uid] = items
+                
+                for l in f_test.readlines():
+                    if len(l) == 0: break
+                    l = l.strip('\n')
+                    try:
+                        items = [int(i) for i in l.split(' ')]
+                    except Exception:
+                        continue
+
+                    uid, test_items = items[0], items[1:]
+                    self.test_set[uid] = test_items
+            
                 
     def get_adj_mat(self):
         try:
@@ -195,12 +221,13 @@ class sampled_graph_to_matrix(object):
         print('refresh negative pools', time() - t1)
     
     # bgcf는 G_obs로부터 만들어진 sampled graphs에 대해 x hat들의 integral을 구함
-    def sample(self):
+    def sample(self, obs_users):
         # positive / negative items 나누기
-        if self.batch_size <= self.n_users:
-            users = random.sample(self.exist_users, self.batch_size)
-        else:
-            users = [random.choice(self.exist_users) for _ in range(self.batch_size)]
+        # if self.batch_size <= self.n_users:
+        #     users = random.sample(self.exist_users, self.batch_size)
+        # else:
+        #     users = [random.choice(self.exist_users) for _ in range(self.batch_size)]
+        users = copy.deepcopy(obs_users)
             
         def sample_pos_items_for_u(u, num):
             # u유저의 neighbor중 num개 만큼 positive item sampling
