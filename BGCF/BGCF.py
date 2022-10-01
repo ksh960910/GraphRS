@@ -9,6 +9,8 @@ class BGCFLayer(nn.Module):
         self.n_items = n_items
         self.in_features = args.embed_size      # 기존 노드의 embedding 차원수 
         self.out_features = args.layer_size    # 결과 weight의 embedding 차원수
+        self.device = torch.device('cuda:' + str(args.gpu_id))
+
 
         self.node_dropout = args.node_dropout
         self.mess_dropout = args.mess_dropout
@@ -63,7 +65,8 @@ class BGCFLayer(nn.Module):
                 obs_neg_items, 
                 obs_adj_matrix, 
                 iteration):
-        self.adj_matrix = adj_matrix
+        self.adj_matrix = adj_matrix.cuda()
+        self.obs_adj_matrix = obs_adj_matrix.cuda()
         self.iteration = iteration
         coef = torch.zeros(self.n_users, self.n_items)
         
@@ -75,7 +78,7 @@ class BGCFLayer(nn.Module):
         
         # score는 각각 user-item 간의 attention score
         score = torch.exp(torch.inner(user_emb, item_emb))
-        score = torch.multiply(score, adj_matrix)
+        score = torch.multiply(score, self.adj_matrix)
         
         for i in range(score.shape[0]):
             norm = torch.sum(score[i])
@@ -84,6 +87,8 @@ class BGCFLayer(nn.Module):
         # coef에다가 normalized된 최종적인 attention score 저장
         w_1 = self.weight_dict['W_1']
         w_2 = self.weight_dict['W_2']
+
+        coef = coef.cuda()
         # h_tilde_1은 w_1과 곱해지는 부분의 embedding (e_k)를 user와 item으로 쪼개서 계산후 concat
         h_tilde_1_user = torch.matmul(coef, item_emb)
         h_tilde_1_user = torch.matmul(h_tilde_1_user, w_1)
@@ -94,20 +99,20 @@ class BGCFLayer(nn.Module):
         neighbor_num_user, neighbor_num_item = torch.zeros(self.n_users), torch.zeros(self.n_items)
         for i in range(self.n_users):
             # neighbor_num_user[i] = sum(adj_matrix[i])
-            neighbor_num_user[i] = torch.sum(adj_matrix[i])
+            neighbor_num_user[i] = torch.sum(self.adj_matrix[i])
         for j in range(self.n_items):
             # neighbor_num_item[j] = sum(adj_matrix.T[j])
-            neighbor_num_item[j] = torch.sum(adj_matrix.T[j])
+            neighbor_num_item[j] = torch.sum(self.adj_matrix.T[j])
         # neighbor_num은 n_j에 해당하는 부분
         
         # h_tilde_2는 w_2와 곱해지는 부분
-        h_tilde_2_user = torch.matmul(adj_matrix, item_emb)
+        h_tilde_2_user = torch.matmul(self.adj_matrix, item_emb)
         # h_tilde_2_user = torch.matmul(neighbor_num_user, h_tilde_2_user)
         # (1 / 각 user의 neighbor의 수) 만큼 item embedding에 곱해주는 과정
         for i in range(neighbor_num_user.shape[0]):
             h_tilde_2_user[i] = (1 / neighbor_num_user[i]) * h_tilde_2_user[i]
         h_tilde_2_user = torch.matmul(h_tilde_2_user, w_2)
-        h_tilde_2_item = torch.matmul(adj_matrix.T, user_emb)
+        h_tilde_2_item = torch.matmul(self.adj_matrix.T, user_emb)
         # h_tilde_2_item = torch.matmul(neighbor_num_item, h_tilde_2_item)
         # 각 item의 neighbor의 수 만큼 user embedding에 곱해주는 과정
         for j in range(neighbor_num_item.shape[0]):
@@ -131,20 +136,20 @@ class BGCFLayer(nn.Module):
         # 각 원소 = 각 node의 neighbor수
         for i in range(self.n_users):
             # obs_neighbor_num_user[i] = sum(obs_adj_matrix[i])
-            obs_neighbor_num_user[i] = torch.sum(obs_adj_matrix[i])
+            obs_neighbor_num_user[i] = torch.sum(self.obs_adj_matrix[i])
         for j in range(self.n_items):
             # obs_neighbor_num_item[j] = sum(obs_adj_matrix.T[j])
-            obs_neighbor_num_item[j] = torch.sum(obs_adj_matrix.T[j])
+            obs_neighbor_num_item[j] = torch.sum(self.obs_adj_matrix.T[j])
         # neighbor_num은 n_j에 해당하는 부분
         
         # h_tilde_obs_user
-        h_tilde_obs_user = torch.matmul(obs_adj_matrix, item_emb)
+        h_tilde_obs_user = torch.matmul(self.obs_adj_matrix, item_emb)
         for i in range(obs_neighbor_num_user.shape[0]):
             h_tilde_obs_user[i] = (1 / obs_neighbor_num_user[i]) * h_tilde_obs_user[i]
         h_tilde_obs_user = torch.tanh(torch.matmul(h_tilde_obs_user, w_obs))
         
         # h_tilde_obs_item
-        h_tilde_obs_item = torch.matmul(obs_adj_matrix.T, user_emb)
+        h_tilde_obs_item = torch.matmul(self.obs_adj_matrix.T, user_emb)
         for j in range(obs_neighbor_num_item.shape[0]):
             h_tilde_obs_item[j] = (1 / obs_neighbor_num_item[j]) * h_tilde_obs_item[j]
         h_tilde_obs_item = torch.tanh(torch.matmul(h_tilde_obs_item, w_obs))

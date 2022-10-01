@@ -11,6 +11,7 @@ import tqdm
 if __name__ == '__main__':
 
     args = parse_args()
+    args.device = torch.device('cuda:' + str(args.gpu_id))
 
     t0 = time()
 
@@ -20,7 +21,7 @@ if __name__ == '__main__':
     print(f'#users, #items : {n_users}, {n_items}')
 
     # 모델 정의
-    model = BGCFLayer(n_users, n_items, args)
+    model = BGCFLayer(n_users, n_items, args).to(args.device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=5e-4)
 
@@ -29,8 +30,10 @@ if __name__ == '__main__':
     obs_adj_matrix = torch.Tensor(obs_adj_matrix)
     print(obs_adj_matrix.shape)
 
-    for epoch in range(1):
-        loss, mf_loss, emb_loss = 0., 0., 0.
+    loss, mf_loss, emb_loss = 0., 0., 0.
+
+    for epoch in range(2):
+        
 
         sampled_graph = sampled_graph_to_matrix(path = args.path, iteration = epoch, batch_size=args.batch_size)
         adj_matrix = sampled_graph.get_adj_mat().toarray()
@@ -39,10 +42,9 @@ if __name__ == '__main__':
         n_batch = n_users // args.batch_size + 1
         print(n_batch)
 
-        for iteration in range(1): #n_batch
+        for iteration in range(n_batch): #n_batch
             t1 = time()
             
-            # sample하는 부분이 따로따로 말고 같이 이뤄져야함 ---- 수정필요
             obs_users, obs_pos_items, obs_neg_items = obs_graph.sample()
             print(len(obs_users), len(obs_pos_items))
             
