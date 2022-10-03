@@ -23,7 +23,12 @@ class generate_graph(object):
     def jaccard_index(self, u_i, u_j, neighbor_dict):
         u_i_neighbor = self.neighbor_dict[u_i]
         u_j_neighbor = self.neighbor_dict[u_j]
-        return len(list(set(u_i_neighbor) & set(u_j_neighbor))) / len(list(set(u_i_neighbor) | set(u_j_neighbor)))
+        
+        intersection = len(list(set(u_i_neighbor).intersection(u_j_neighbor)))
+        union = (len(u_i_neighbor) + len(u_j_neighbor)) - intersection
+        return float(intersection) / union
+        # 원래 쓴 jaccard index code -- 너무 느려서 바꿈
+        # return len(list(set(u_i_neighbor) & set(u_j_neighbor))) / len(list(set(u_i_neighbor) | set(u_j_neighbor)))
 
     # 새로운 graph의 node j 에다가 기존 graph의 어떤 node의 neighborhood를 복사할지 zeta에 담기
     def node_copying(self, iteration):

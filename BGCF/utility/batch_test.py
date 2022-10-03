@@ -120,14 +120,15 @@ def test(model, users_to_test, users, pos_items, neg_items, full_pos_items, full
 
         item_batch = range(ITEM_NUM)
         u_g_embeddings, pos_i_g_embeddings, _  =  model(user_batch,
-                                                            pos_items,
+                                                            item_batch,
                                                             neg_items,
                                                             adj_matrix,
                                                             user_batch,
-                                                            full_pos_items,
+                                                            item_batch,
                                                             full_neg_items,
                                                             full_adj_matrix,
                                                             iteration)
+
 
         rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
 

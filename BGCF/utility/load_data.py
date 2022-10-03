@@ -71,16 +71,15 @@ class Data(object):
                     if len(l) == 0: break
                     l = l.strip('\n').split(' ')
                     try:
-                        uid, items = int(l[0]), [int(i) for i in l[1:]]
+                        uid, test_items = int(l[0]), [int(i) for i in l[1:]]
                     except Exception:
                         continue
 
-                    for i in items:
+                    for i in test_items:
                         self.F[uid, i ] = 1.
 
-                    uid, test_items = items[0], items[1:]
-                    self.test_set[uid] = test_items
-                    self.test_set.update(self.train_items)
+                    self.test_set[uid] = test_items 
+        
                     
                 
     def get_adj_mat(self):
