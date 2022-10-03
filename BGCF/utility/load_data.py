@@ -17,7 +17,7 @@ class Data(object):
         
         self.n_users, self.n_items = 0, 0
         self.n_train, self.n_test = 0, 0
-        self.exist_users = []
+        self.exist_users, self.full_users = [], []
 
         with open(train_file, 'r') as f:
             for l in f.readlines():
@@ -30,12 +30,17 @@ class Data(object):
                     self.n_items = max(self.n_items, max(items))
                     self.n_train += len(items)
 
+        self.full_users = copy.deepcopy(self.exist_users)
+
         with open(test_file, 'r') as f:
             for l in f.readlines():
                 if len(l) > 0:
-                    l = l.strip('\n')
+                    l = l.strip('\n').split(' ')
                     try:
-                        items = [int(i) for i in l.split(' ')[1:]]
+                        items = [int(i) for i in l[1:]]
+                        uid = int(l[0])
+                        if uid not in self.full_users:
+                            self.full_users.append(uid)
                     except Exception:
                         continue
                     self.n_items = max(self.n_items, max(items))
@@ -46,6 +51,7 @@ class Data(object):
         # print('Observed data #user, #item : ',self.n_users, self.n_items)
 
         self.R = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
+        self.F = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
         self.train_items, self.test_set = {}, {}
 
         with open(train_file, 'r') as f_train:
@@ -57,31 +63,39 @@ class Data(object):
                     uid, items = int(l[0]), [int(i) for i in l[1:]]
 
                     for i in items:
-                        self.R[uid, i] = 1
+                        self.R[uid, i] = 1.
 
                     self.train_items[uid] = items
                 
                 for l in f_test.readlines():
                     if len(l) == 0: break
-                    l = l.strip('\n')
+                    l = l.strip('\n').split(' ')
                     try:
-                        items = [int(i) for i in l.split(' ')]
+                        uid, items = int(l[0]), [int(i) for i in l[1:]]
                     except Exception:
                         continue
 
+                    for i in items:
+                        self.F[uid, i ] = 1.
+
                     uid, test_items = items[0], items[1:]
                     self.test_set[uid] = test_items
-            
+                    self.test_set.update(self.train_items)
+                    
                 
     def get_adj_mat(self):
         try:
             obs_adj_mat = sp.load_npz(self.path + '/obs_adj_mat.npz')
+            full_adj_mat = sp.load_npz(self.path + '/full_adj_mat.npz')
             
         except Exception:
             obs_adj_mat = self.create_adj_mat()
             sp.save_npz(self.path + '/obs_adj_mat.npz', obs_adj_mat)
+
+            full_adj_mat = self.create_full_adj_mat()
+            sp.save_npz(self.path + '/full_adj_mat.npz', full_adj_mat)
             
-        return obs_adj_mat
+        return obs_adj_mat, full_adj_mat
     
     
     def create_adj_mat(self):
@@ -89,6 +103,12 @@ class Data(object):
         obs_adj_mat = self.R.todok()
         print('already create observed graph adjacency matrix', obs_adj_mat.shape)
         return obs_adj_mat.tocsr()
+
+    def create_full_adj_mat(self):
+        # obs_adj_mat = self.R.todok()[:128,:]
+        full_adj_mat = self.R.todok() + self.F.todok()
+        print('already create full graph adjacency matrix', full_adj_mat.shape)
+        return full_adj_mat.tocsr()
     
     # bgcf는 G_obs로부터 만들어진 sampled graphs에 대해 x hat들의 integral을 구함
     def sample(self):
@@ -101,6 +121,50 @@ class Data(object):
         def sample_pos_items_for_u(u, num):
             # u유저의 neighbor중 num개 만큼 positive item sampling
             pos_items = self.train_items[u]
+            n_pos_items = len(pos_items)
+            pos_batch = []
+            while True:
+                if len(pos_batch) == num:
+                    break
+                pos_id = np.random.randint(low=0, high=n_pos_items, size=1)[0]
+                pos_i_id = pos_items[pos_id]
+
+                if pos_i_id not in pos_batch:
+                    pos_batch.append(pos_i_id)
+            return pos_batch
+
+        def sample_neg_items_for_u(u, num):
+            # u유저의 neighbor가 아닌 item 중 num개 만큼 sampling
+            neg_items = []
+            while True:
+                if len(neg_items) == num:
+                    break
+                neg_id = np.random.randint(low=0, high=self.n_items, size=1)[0]
+                if neg_id not in self.train_items[u] and neg_id not in neg_items:
+                    neg_items.append(neg_id)
+            return neg_items
+
+    #         def sample_neg_items_for_u_from_pools(u, num):
+    #             neg_items = list(set(self.neg_pools[u]) - set(self.train_items[u]))
+    #             return random.sample(neg_items, num)     
+
+        obs_pos_items, obs_neg_items = [], []
+        for u in obs_users:
+            obs_pos_items += sample_pos_items_for_u(u,1)
+            obs_neg_items += sample_neg_items_for_u(u,1)
+
+        return obs_users, obs_pos_items, obs_neg_items
+
+    def full_sample(self):
+        # positive / negative items 나누기
+        if self.batch_size <= self.n_users:
+            obs_users = random.sample(self.full_users, self.batch_size)
+        else:
+            obs_users = [random.choice(self.full_users) for _ in range(self.batch_size)]
+            
+        def sample_pos_items_for_u(u, num):
+            # u유저의 neighbor중 num개 만큼 positive item sampling
+            pos_items = self.test_set[u]
             n_pos_items = len(pos_items)
             pos_batch = []
             while True:
@@ -192,7 +256,7 @@ class sampled_graph_to_matrix(object):
                 uid, items = int(l[0]), [int(i) for i in l[1:]]
 
                 for i in items:
-                    self.R[uid, i] = 1
+                    self.R[uid, i] = 1.
 
                 self.train_items[uid] = items
                 

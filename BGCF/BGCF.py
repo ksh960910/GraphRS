@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class BGCFLayer(nn.Module):
     # TODO : 초기함수에 positive/negative item 리스트를 받아서 각 positive/negative item들의 embedding이 output으로 나오게끔
@@ -33,6 +34,9 @@ class BGCFLayer(nn.Module):
             'user_emb' : nn.Parameter(initializer(torch.empty(self.n_users, self.out_features))),
             'item_emb' : nn.Parameter(initializer(torch.empty(self.n_items, self.out_features)))
         })
+
+    def rating(self, u_g_embeddings, pos_i_g_embeddings):
+        return torch.matmul(u_g_embeddings, pos_i_g_embeddings.t())
         
     def create_bpr_loss(self, users, pos_items, neg_items):
         users = torch.nan_to_num(users)
@@ -73,8 +77,14 @@ class BGCFLayer(nn.Module):
 #         adj_matrix = sp.load_npz(path + '/s_adj_mat_' + str(iteration+1) +'.npz').toarray()
 #         adj_matrix = torch.Tensor(adj)
         
-        user_emb = self.embedding_dict['user_emb']
-        item_emb = self.embedding_dict['item_emb']
+        # 수정한 부분
+        # user_emb = self.embedding_dict['user_emb']
+        # item_emb = self.embedding_dict['item_emb']
+        
+        # user와 item embedding 초기화 하고 얘네들은 학습되지 않도록
+        initializer = nn.init.xavier_uniform_
+        user_emb = initializer(torch.empty(self.n_users, self.out_features)).cuda()
+        item_emb = initializer(torch.empty(self.n_items, self.out_features)).cuda()
         
         # score는 각각 user-item 간의 attention score
         score = torch.exp(torch.inner(user_emb, item_emb))
@@ -82,8 +92,10 @@ class BGCFLayer(nn.Module):
         
         for i in range(score.shape[0]):
             norm = torch.sum(score[i])
+            norm += 1e-6
             normalized_score = score[i] / norm
             coef[i] = normalized_score
+
         # coef에다가 normalized된 최종적인 attention score 저장
         w_1 = self.weight_dict['W_1']
         w_2 = self.weight_dict['W_2']
@@ -110,18 +122,19 @@ class BGCFLayer(nn.Module):
         # h_tilde_2_user = torch.matmul(neighbor_num_user, h_tilde_2_user)
         # (1 / 각 user의 neighbor의 수) 만큼 item embedding에 곱해주는 과정
         for i in range(neighbor_num_user.shape[0]):
-            h_tilde_2_user[i] = (1 / neighbor_num_user[i]) * h_tilde_2_user[i]
+            h_tilde_2_user[i] = (1 / (neighbor_num_user[i] + 1e-6)) * h_tilde_2_user[i]
         h_tilde_2_user = torch.matmul(h_tilde_2_user, w_2)
         h_tilde_2_item = torch.matmul(self.adj_matrix.T, user_emb)
         # h_tilde_2_item = torch.matmul(neighbor_num_item, h_tilde_2_item)
         # 각 item의 neighbor의 수 만큼 user embedding에 곱해주는 과정
         for j in range(neighbor_num_item.shape[0]):
-            h_tilde_2_item[j] = (1 / neighbor_num_item[j]) * h_tilde_2_item[j]
+            h_tilde_2_item[j] = (1 / (neighbor_num_item[j] + 1e-6)) * h_tilde_2_item[j]
         h_tilde_2_item = torch.matmul(h_tilde_2_item, w_2)
         # h_tilde_2 = torch.cat((h_tilde_2_user, h_tilde_2_item), dim=0)
         
         h_tilde_sampled_user = torch.cat((h_tilde_1_user, h_tilde_2_user), dim=1)
         h_tilde_sampled_item = torch.cat((h_tilde_2_item, h_tilde_2_item), dim=1)
+
         
         h_tilde_sampled_user = h_tilde_sampled_user[users,:]
         h_tilde_sampled_pos_item = h_tilde_sampled_item[pos_items,:]
@@ -145,13 +158,13 @@ class BGCFLayer(nn.Module):
         # h_tilde_obs_user
         h_tilde_obs_user = torch.matmul(self.obs_adj_matrix, item_emb)
         for i in range(obs_neighbor_num_user.shape[0]):
-            h_tilde_obs_user[i] = (1 / obs_neighbor_num_user[i]) * h_tilde_obs_user[i]
+            h_tilde_obs_user[i] = (1 / (obs_neighbor_num_user[i] + 1e-6)) * h_tilde_obs_user[i]
         h_tilde_obs_user = torch.tanh(torch.matmul(h_tilde_obs_user, w_obs))
         
         # h_tilde_obs_item
         h_tilde_obs_item = torch.matmul(self.obs_adj_matrix.T, user_emb)
         for j in range(obs_neighbor_num_item.shape[0]):
-            h_tilde_obs_item[j] = (1 / obs_neighbor_num_item[j]) * h_tilde_obs_item[j]
+            h_tilde_obs_item[j] = (1 / (obs_neighbor_num_item[j] + 1e-6)) * h_tilde_obs_item[j]
         h_tilde_obs_item = torch.tanh(torch.matmul(h_tilde_obs_item, w_obs))
         
         h_tilde_obs_user = h_tilde_obs_user[obs_users,:]
@@ -163,4 +176,8 @@ class BGCFLayer(nn.Module):
         h_tilde_pos_item = torch.tanh(torch.cat((h_tilde_sampled_pos_item, h_tilde_obs_pos_item), dim=1))
         h_tilde_neg_item = torch.tanh(torch.cat((h_tilde_sampled_neg_item, h_tilde_obs_neg_item), dim=1))
         
+        h_tilde_user = F.normalize(h_tilde_user, p=2)
+        h_tilde_pos_item = F.normalize(h_tilde_pos_item, p=2)
+        h_tilde_neg_item = F.normalize(h_tilde_neg_item, p=2)
+
         return h_tilde_user, h_tilde_pos_item, h_tilde_neg_item
