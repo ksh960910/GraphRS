@@ -69,6 +69,7 @@ class BGCFLayer(nn.Module):
                 obs_neg_items, 
                 obs_adj_matrix, 
                 iteration):
+                
         self.adj_matrix = adj_matrix.cuda()
         self.obs_adj_matrix = obs_adj_matrix.cuda()
         self.iteration = iteration

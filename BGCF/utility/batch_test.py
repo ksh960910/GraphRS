@@ -162,6 +162,7 @@ def test(model, users_to_test, users, pos_items, neg_items, adj_matrix, test_adj
         count += len(batch_result)
 
         for re in batch_result:
+            # print('re : ', re['recall'], len(re['recall']))
             result['precision'] += re['precision']/n_test_users
             result['recall'] += re['recall']/n_test_users
             result['ndcg'] += re['ndcg']/n_test_users

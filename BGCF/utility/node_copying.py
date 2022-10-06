@@ -46,7 +46,7 @@ class generate_graph(object):
                 zeta_distribution.append(self.jaccard_index(u_j, u_m, self.neighbor_dict) / nor)
             zeta.append(random.choices(self.user, weights=zeta_distribution)[0])
         print('total node copying time cost : ', time() - t1)
-        np.save(self.path + '/zeta/zeta_'+str(iteration+1)+'.npy', zeta)
+        np.save(self.path + '/zeta/zeta_epoch'+str(iteration+1)+'.npy', zeta)
         
         return zeta
     
@@ -58,7 +58,7 @@ class generate_graph(object):
         
         generated_node = []
         
-        with open(self.path+'/sampled_graph/sampled_graph_'+str(iteration+1), 'w') as f:
+        with open(self.path+'/sampled_graph/sampled_graph_epoch'+str(iteration+1)+'_epsilon'+str(epsilon), 'w') as f:
             for i in self.user:
                 if random.uniform(0,1) < 1-self.epsilon:  # 1-epsilon의 확률로 원래 neighbor 넣기
                     generated_node.append(i)

@@ -4,6 +4,9 @@ import scipy.sparse as sp
 from time import time
 import copy
 from utility.node_copying import generate_graph
+from utility.parser import parse_args
+
+args = parse_args()
 
 # observed data로 sparse matrix 및 adjacency matrix 만들기
 class Data(object):
@@ -17,7 +20,7 @@ class Data(object):
         
         self.n_users, self.n_items = 0, 0
         self.n_train, self.n_test = 0, 0
-        self.exist_users, self.full_users = [], []
+        self.exist_users = []
 
         with open(train_file, 'r') as f:
             for l in f.readlines():
@@ -155,49 +158,49 @@ class Data(object):
 
         return obs_users, obs_pos_items, obs_neg_items
 
-    def full_sample(self):
-        # positive / negative items 나누기
-        if self.batch_size <= self.n_users:
-            obs_users = random.sample(self.full_users, self.batch_size)
-        else:
-            obs_users = [random.choice(self.full_users) for _ in range(self.batch_size)]
+    # def full_sample(self):
+    #     # positive / negative items 나누기
+    #     if self.batch_size <= self.n_users:
+    #         obs_users = random.sample(self.full_users, self.batch_size)
+    #     else:
+    #         obs_users = [random.choice(self.full_users) for _ in range(self.batch_size)]
             
-        def sample_pos_items_for_u(u, num):
-            # u유저의 neighbor중 num개 만큼 positive item sampling
-            pos_items = self.test_set[u]
-            n_pos_items = len(pos_items)
-            pos_batch = []
-            while True:
-                if len(pos_batch) == num:
-                    break
-                pos_id = np.random.randint(low=0, high=n_pos_items, size=1)[0]
-                pos_i_id = pos_items[pos_id]
+    #     def sample_pos_items_for_u(u, num):
+    #         # u유저의 neighbor중 num개 만큼 positive item sampling
+    #         pos_items = self.test_set[u]
+    #         n_pos_items = len(pos_items)
+    #         pos_batch = []
+    #         while True:
+    #             if len(pos_batch) == num:
+    #                 break
+    #             pos_id = np.random.randint(low=0, high=n_pos_items, size=1)[0]
+    #             pos_i_id = pos_items[pos_id]
 
-                if pos_i_id not in pos_batch:
-                    pos_batch.append(pos_i_id)
-            return pos_batch
+    #             if pos_i_id not in pos_batch:
+    #                 pos_batch.append(pos_i_id)
+    #         return pos_batch
 
-        def sample_neg_items_for_u(u, num):
-            # u유저의 neighbor가 아닌 item 중 num개 만큼 sampling
-            neg_items = []
-            while True:
-                if len(neg_items) == num:
-                    break
-                neg_id = np.random.randint(low=0, high=self.n_items, size=1)[0]
-                if neg_id not in self.train_items[u] and neg_id not in neg_items:
-                    neg_items.append(neg_id)
-            return neg_items
+    #     def sample_neg_items_for_u(u, num):
+    #         # u유저의 neighbor가 아닌 item 중 num개 만큼 sampling
+    #         neg_items = []
+    #         while True:
+    #             if len(neg_items) == num:
+    #                 break
+    #             neg_id = np.random.randint(low=0, high=self.n_items, size=1)[0]
+    #             if neg_id not in self.train_items[u] and neg_id not in neg_items:
+    #                 neg_items.append(neg_id)
+    #         return neg_items
 
-    #         def sample_neg_items_for_u_from_pools(u, num):
-    #             neg_items = list(set(self.neg_pools[u]) - set(self.train_items[u]))
-    #             return random.sample(neg_items, num)     
+    # #         def sample_neg_items_for_u_from_pools(u, num):
+    # #             neg_items = list(set(self.neg_pools[u]) - set(self.train_items[u]))
+    # #             return random.sample(neg_items, num)     
 
-        obs_pos_items, obs_neg_items = [], []
-        for u in obs_users:
-            obs_pos_items += sample_pos_items_for_u(u,1)
-            obs_neg_items += sample_neg_items_for_u(u,1)
+    #     obs_pos_items, obs_neg_items = [], []
+    #     for u in obs_users:
+    #         obs_pos_items += sample_pos_items_for_u(u,1)
+    #         obs_neg_items += sample_neg_items_for_u(u,1)
 
-        return obs_users, obs_pos_items, obs_neg_items
+    #     return obs_users, obs_pos_items, obs_neg_items
 
 
 # node copying으로 만들어진 graph들에 대해서 adj matrix 만들고 npz 저장하는 과정 
@@ -208,21 +211,21 @@ class sampled_graph_to_matrix(object):
         self.batch_size = batch_size
 
         try:
-            zeta = zeta = np.load(self.path + '/zeta/zeta_' + str(iteration+1) + '.npy')
+            zeta = zeta = np.load(self.path + '/zeta/zeta_epoch' + str(iteration+1) + '.npy')
             # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
 
         except Exception:
             try:
-                zeta = np.load(self.path + '/zeta/zeta_' + str(iteration+1) + '.npy')
-                generate_graph(self.path).generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+                zeta = np.load(self.path + '/zeta/zeta_epoch' + str(iteration+1) + '.npy')
+                generate_graph(self.path).generate_graph(zeta=zeta, epsilon=args.epsilon, iteration=iteration)
                 # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
             
             except Exception:
                 zeta = generate_graph(self.path).node_copying(iteration = iteration)
-                generate_graph(self.path).generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+                generate_graph(self.path).generate_graph(zeta=zeta, epsilon=args.epsilon, iteration=iteration)
                 # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
         
-        sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
+        sampled_graph = self.path + '/sampled_graph/sampled_graph_epoch' + str(iteration+1) + '_epsilon' + str(args.epsilon)
 
         self.n_users, self.n_items = 0, 0
         self.n_train, self.n_test = 0, 0
@@ -262,11 +265,11 @@ class sampled_graph_to_matrix(object):
                 
     def get_adj_mat(self):
         try:
-            adj_mat = sp.load_npz(self.path + '/s_adj_mat_' + str(self.iteration+1) + '.npz')
+            adj_mat = sp.load_npz(self.path + '/sampled_graph_adj/s_adj_mat_' + str(self.iteration+1) + '.npz')
             
         except Exception:
             adj_mat = self.create_adj_mat()
-            sp.save_npz(self.path + '/s_adj_mat_' + str(self.iteration+1) + '.npz', adj_mat)
+            sp.save_npz(self.path + '/sampled_graph_adj/s_adj_mat_' + str(self.iteration+1) + '.npz', adj_mat)
             
         return adj_mat
     
