@@ -97,18 +97,19 @@ def test_one_user(x):
 
     return get_performance(user_pos_test, r, auc, Ks)
 
-def test(model, users_to_test, users, pos_items, neg_items, full_pos_items, full_neg_items, adj_matrix, full_adj_matrix, iteration):
+def test(model, users_to_test, users, pos_items, neg_items, adj_matrix, test_adj_mat, epoch):
     result = {'precision': np.zeros(len(Ks)), 'recall': np.zeros(len(Ks)), 'ndcg': np.zeros(len(Ks)), 'auc': 0.}
 
     pool = multiprocessing.Pool(cores)
 
-    u_batch_size = BATCH_SIZE * 2
+    u_batch_size = BATCH_SIZE
     i_batch_size = BATCH_SIZE
 
     test_users = users_to_test
     n_test_users = len(test_users)
     n_user_batchs = n_test_users // u_batch_size + 1
 
+    # users : generate된 그래프의 user, pos_items : generate된 그래프를 보고 나눈 pos item
 
     count = 0
 
@@ -118,30 +119,53 @@ def test(model, users_to_test, users, pos_items, neg_items, full_pos_items, full
 
         user_batch = test_users[start: end]
 
-        item_batch = range(ITEM_NUM)
-        u_g_embeddings, pos_i_g_embeddings, _  =  model(user_batch,
-                                                            item_batch,
-                                                            neg_items,
-                                                            adj_matrix,
-                                                            user_batch,
-                                                            item_batch,
-                                                            full_neg_items,
-                                                            full_adj_matrix,
-                                                            iteration)
+        n_item_batchs = ITEM_NUM // i_batch_size + 1
+        rate_batch = np.zeros(shape=(len(user_batch), ITEM_NUM))
+
+        i_count = 0
+        for i_batch_id in range(n_item_batchs):
+            i_start = i_batch_id * i_batch_size
+            i_end = min((i_batch_id + 1) * i_batch_size, ITEM_NUM)
+
+            item_batch = range(i_start, i_end)
+            u_g_embeddings, pos_i_g_embeddings, _ = model(user_batch,
+                                                          item_batch,
+                                                          neg_items,
+                                                          adj_matrix,
+                                                          user_batch,
+                                                          item_batch,
+                                                          [],
+                                                          test_adj_mat,
+                                                          epoch)
+
+            i_rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
+        # item_batch = range(ITEM_NUM)
+        # u_g_embeddings, pos_i_g_embeddings, _  =  model(users,
+        #                                                 pos_items,
+        #                                                 neg_items,
+        #                                                 adj_matrix,
+        #                                                 user_batch,
+        #                                                 item_batch,
+        #                                                 [],
+        #                                                 test_adj_mat,
+        #                                                 epoch)
 
 
-        rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
+        # rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
+            rate_batch[:, i_start: i_end] = i_rate_batch
+            i_count += i_rate_batch.shape[1]
 
+        assert i_count == ITEM_NUM
 
-    user_batch_rating_uid = zip(rate_batch.numpy(), user_batch)
-    batch_result = pool.map(test_one_user, user_batch_rating_uid)
-    count += len(batch_result)
+        user_batch_rating_uid = zip(rate_batch, user_batch)
+        batch_result = pool.map(test_one_user, user_batch_rating_uid)
+        count += len(batch_result)
 
-    for re in batch_result:
-        result['precision'] += re['precision']/n_test_users
-        result['recall'] += re['recall']/n_test_users
-        result['ndcg'] += re['ndcg']/n_test_users
-        result['auc'] += re['auc']/n_test_users
+        for re in batch_result:
+            result['precision'] += re['precision']/n_test_users
+            result['recall'] += re['recall']/n_test_users
+            result['ndcg'] += re['ndcg']/n_test_users
+            result['auc'] += re['auc']/n_test_users
 
 
     assert count == n_test_users

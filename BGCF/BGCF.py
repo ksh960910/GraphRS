@@ -174,7 +174,10 @@ class BGCFLayer(nn.Module):
         # Final embedding
         h_tilde_user = torch.tanh(torch.cat((h_tilde_sampled_user, h_tilde_obs_user), dim=1))
         h_tilde_pos_item = torch.tanh(torch.cat((h_tilde_sampled_pos_item, h_tilde_obs_pos_item), dim=1))
-        h_tilde_neg_item = torch.tanh(torch.cat((h_tilde_sampled_neg_item, h_tilde_obs_neg_item), dim=1))
+        if h_tilde_obs_neg_item.shape[0] !=0:
+            h_tilde_neg_item = torch.tanh(torch.cat((h_tilde_sampled_neg_item, h_tilde_obs_neg_item), dim=1))
+        else:
+            h_tilde_neg_item = h_tilde_sampled_neg_item
         
         h_tilde_user = F.normalize(h_tilde_user, p=2)
         h_tilde_pos_item = F.normalize(h_tilde_pos_item, p=2)

@@ -27,11 +27,11 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=5e-4)
 
     obs_graph = Data(path = args.path, batch_size = args.batch_size)
-    obs_adj_matrix, full_adj_matrix = obs_graph.get_adj_mat()
+    obs_adj_matrix, test_adj_mat = obs_graph.get_adj_mat()
     obs_adj_matrix = torch.Tensor(obs_adj_matrix.toarray())
-    full_adj_matrix = torch.Tensor(full_adj_matrix.toarray())
+    test_adj_mat = torch.Tensor(test_adj_mat.toarray())
 
-    print(obs_adj_matrix.shape, full_adj_matrix.shape)
+    print(obs_adj_matrix.shape, test_adj_mat.shape)
 
 
     loss, mf_loss, emb_loss = 0., 0., 0.
@@ -51,31 +51,32 @@ if __name__ == '__main__':
             t1 = time()
             
             obs_users, obs_pos_items, obs_neg_items = obs_graph.sample()
-            print(len(obs_users), len(obs_pos_items))
-
-            full_users, full_pos_items, full_neg_items = obs_graph.full_sample()
-            print(len(full_users), len(full_pos_items), len(full_neg_items))
+            
+            # test할 때 필요한 전체 
+            # full_users, full_pos_items, full_neg_items = obs_graph.full_sample()
+            # print(len(full_users), len(full_pos_items), len(full_neg_items))
             
             users, pos_items, neg_items = sampled_graph.sample(obs_users)
             # print('sampled : ', adj_matrix.shape, len(users), len(pos_items))
+
 
             '''불러오는 sampled graph matrix마다 pos, neg item set을 만들고
             bpr loss 함수에다가 각 item들에 해당하는 embedding을 입력으로 넣어줌'''
 
             u_g_embeddings, pos_i_g_embeddings, neg_i_g_embeddings = model(users,
-                                                                        pos_items,
-                                                                        neg_items,
-                                                                        adj_matrix,
-                                                                        obs_users,
-                                                                        obs_pos_items,
-                                                                        obs_neg_items,
-                                                                        obs_adj_matrix,
-                                                                        epoch)
+                                                                           pos_items,
+                                                                           neg_items,
+                                                                           adj_matrix,
+                                                                           obs_users,
+                                                                           obs_pos_items,
+                                                                           obs_neg_items,
+                                                                           obs_adj_matrix,
+                                                                           epoch)
 
             
             batch_loss, batch_mf_loss, batch_emb_loss = model.create_bpr_loss(u_g_embeddings,
-                                                                            pos_i_g_embeddings,
-                                                                            neg_i_g_embeddings)
+                                                                              pos_i_g_embeddings,
+                                                                              neg_i_g_embeddings)
             
             optimizer.zero_grad()
             batch_loss.backward()
@@ -96,7 +97,7 @@ if __name__ == '__main__':
         if epoch%2==0:
             t2 = time()
             users_to_test = list(data.test_set.keys())
-            ret = test(model, users_to_test, users, pos_items, neg_items, full_pos_items, full_neg_items, adj_matrix, full_adj_matrix, epoch)
+            ret = test(model, users_to_test, users, pos_items, neg_items, adj_matrix, test_adj_mat, epoch)
 
             t3 = time()
 

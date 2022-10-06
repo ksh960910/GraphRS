@@ -30,7 +30,7 @@ class Data(object):
                     self.n_items = max(self.n_items, max(items))
                     self.n_train += len(items)
 
-        self.full_users = copy.deepcopy(self.exist_users)
+        # self.full_users = copy.deepcopy(self.exist_users)
 
         with open(test_file, 'r') as f:
             for l in f.readlines():
@@ -39,8 +39,8 @@ class Data(object):
                     try:
                         items = [int(i) for i in l[1:]]
                         uid = int(l[0])
-                        if uid not in self.full_users:
-                            self.full_users.append(uid)
+                        # if uid not in self.full_users:
+                        #     self.full_users.append(uid)
                     except Exception:
                         continue
                     self.n_items = max(self.n_items, max(items))
@@ -85,16 +85,16 @@ class Data(object):
     def get_adj_mat(self):
         try:
             obs_adj_mat = sp.load_npz(self.path + '/obs_adj_mat.npz')
-            full_adj_mat = sp.load_npz(self.path + '/full_adj_mat.npz')
+            test_adj_mat = sp.load_npz(self.path + '/test_adj_mat.npz')
             
         except Exception:
             obs_adj_mat = self.create_adj_mat()
             sp.save_npz(self.path + '/obs_adj_mat.npz', obs_adj_mat)
 
-            full_adj_mat = self.create_full_adj_mat()
-            sp.save_npz(self.path + '/full_adj_mat.npz', full_adj_mat)
+            test_adj_mat = self.create_test_adj_mat()
+            sp.save_npz(self.path + '/test_adj_mat.npz', test_adj_mat)
             
-        return obs_adj_mat, full_adj_mat
+        return obs_adj_mat, test_adj_mat
     
     
     def create_adj_mat(self):
@@ -103,11 +103,12 @@ class Data(object):
         print('already create observed graph adjacency matrix', obs_adj_mat.shape)
         return obs_adj_mat.tocsr()
 
-    def create_full_adj_mat(self):
+    def create_test_adj_mat(self):
         # obs_adj_mat = self.R.todok()[:128,:]
-        full_adj_mat = self.R.todok() + self.F.todok()
-        print('already create full graph adjacency matrix', full_adj_mat.shape)
-        return full_adj_mat.tocsr()
+        # full_adj_mat = self.R.todok() + self.F.todok()
+        test_adj_mat = self.F.todok()
+        print('already create test graph adjacency matrix', test_adj_mat.shape)
+        return test_adj_mat.tocsr()
     
     # bgcf는 G_obs로부터 만들어진 sampled graphs에 대해 x hat들의 integral을 구함
     def sample(self):
@@ -324,3 +325,4 @@ class sampled_graph_to_matrix(object):
             neg_items += sample_neg_items_for_u(u,1)
             
         return users, pos_items, neg_items
+
