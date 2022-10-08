@@ -97,7 +97,7 @@ def test_one_user(x):
 
     return get_performance(user_pos_test, r, auc, Ks)
 
-def test(model, users_to_test, users, pos_items, neg_items, adj_matrix, test_adj_mat, epoch):
+def test(model, users_to_test, s_users_to_test, neg_items, adj_matrix, test_adj_mat, epoch):
     result = {'precision': np.zeros(len(Ks)), 'recall': np.zeros(len(Ks)), 'ndcg': np.zeros(len(Ks)), 'auc': 0.}
 
     pool = multiprocessing.Pool(cores)
@@ -106,11 +106,11 @@ def test(model, users_to_test, users, pos_items, neg_items, adj_matrix, test_adj
     i_batch_size = BATCH_SIZE
 
     test_users = users_to_test
+    s_test_users = s_users_to_test
+
     n_test_users = len(test_users)
+
     n_user_batchs = n_test_users // u_batch_size + 1
-
-    # users : generate된 그래프의 user, pos_items : generate된 그래프를 보고 나눈 pos item
-
     count = 0
 
     for u_batch_id in range(n_user_batchs):
@@ -118,6 +118,7 @@ def test(model, users_to_test, users, pos_items, neg_items, adj_matrix, test_adj
         end = (u_batch_id + 1) * u_batch_size
 
         user_batch = test_users[start: end]
+        s_user_batch = s_test_users[start: end]
 
         n_item_batchs = ITEM_NUM // i_batch_size + 1
         rate_batch = np.zeros(shape=(len(user_batch), ITEM_NUM))
@@ -128,7 +129,7 @@ def test(model, users_to_test, users, pos_items, neg_items, adj_matrix, test_adj
             i_end = min((i_batch_id + 1) * i_batch_size, ITEM_NUM)
 
             item_batch = range(i_start, i_end)
-            u_g_embeddings, pos_i_g_embeddings, _ = model(user_batch,
+            u_g_embeddings, pos_i_g_embeddings, _ = model(s_user_batch,
                                                           item_batch,
                                                           neg_items,
                                                           adj_matrix,

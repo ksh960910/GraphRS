@@ -92,12 +92,15 @@ if __name__ == '__main__':
         # print(f'Epoch : {epoch+1} Train time : {time() - t1:.2f} train loss : {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}')
 
         if (epoch + 1) % 10 != 0:
-            perf_str = f'Epoch {epoch+1}  Train time {(time() - t1)//60 :.0f}min {(time() - t1)%60 :.0f}sec | train loss = {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}'
-            print('Train: ', perf_str)
+            if args.verbose > 0 and (epoch+1) % args.verbose == 0:
+                perf_str = f'Epoch {epoch+1}  Train time {(time() - t1)//60 :.0f}min {(time() - t1)%60 :.0f}sec | train loss = {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}'
+                print('Train: ', perf_str)
+            continue
         
         t2 = time()
         users_to_test = list(data.test_set.keys())
-        ret = test(model, users_to_test, users, pos_items, neg_items, adj_matrix, test_adj_mat, epoch)
+        s_users_to_test = list(sampled_graph.train_items.keys())
+        ret = test(model, users_to_test, s_users_to_test, neg_items, adj_matrix, test_adj_mat, epoch)
 
         t3 = time()
 
