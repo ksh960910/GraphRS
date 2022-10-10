@@ -210,20 +210,20 @@ class sampled_graph_to_matrix(object):
         self.iteration = iteration
         self.batch_size = batch_size
 
-        try:
-            zeta = zeta = np.load(self.path + '/zeta/zeta_epoch' + str(iteration+1) + '.npy')
+        # try:
+        #     zeta = zeta = np.load(self.path + '/zeta/zeta.npy')
             # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
 
+        # except Exception:
+        try:
+            zeta = np.load(self.path + '/zeta/zeta.npy')
+            generate_graph(self.path).generate_graph(zeta=zeta, epsilon=args.epsilon, iteration=iteration)
+            # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
+        
         except Exception:
-            try:
-                zeta = np.load(self.path + '/zeta/zeta_epoch' + str(iteration+1) + '.npy')
-                generate_graph(self.path).generate_graph(zeta=zeta, epsilon=args.epsilon, iteration=iteration)
-                # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
-            
-            except Exception:
-                zeta = generate_graph(self.path).node_copying(iteration = iteration)
-                generate_graph(self.path).generate_graph(zeta=zeta, epsilon=args.epsilon, iteration=iteration)
-                # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
+            zeta = generate_graph(self.path).node_copying()
+            generate_graph(self.path).generate_graph(zeta=zeta, epsilon=args.epsilon, iteration=iteration)
+            # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
         
         sampled_graph = self.path + '/sampled_graph/sampled_graph_epoch' + str(iteration+1) + '_epsilon' + str(args.epsilon)
 

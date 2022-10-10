@@ -2,10 +2,10 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run BGCF')
-    parser.add_argument('--path', default='ml-1m', help = 'Input data path')
+    parser.add_argument('--path', default='Data/', help = 'Input data path')
     parser.add_argument('--weights_path', nargs='?', default='ml-1m/weight', help='Store model path.')
 
-    parser.add_argument('--dataset', default='movielens', help = 'Choose a dataset from {movielens, gowalla, amazon-book')
+    parser.add_argument('--dataset', default='ml-1m', help = 'Choose a dataset from {movielens, gowalla, amazon-book')
 
     parser.add_argument('--epsilon' , type=float, default=1e-8, help = 'Node copying probability')
     parser.add_argument('--verbose' , type=int, default=1, help = 'Interval of evaluation')

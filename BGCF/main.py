@@ -17,7 +17,7 @@ if __name__ == '__main__':
 
     t0 = time()
 
-    data = Data(path = args.path, batch_size = args.batch_size)
+    data = Data(path = args.path+args.dataset, batch_size = args.batch_size)
     n_train, n_users, n_items = data.n_train, data.n_users, data.n_items
     
     print(f'#users, #items, #train items : {n_users}, {n_items}, {n_train}')
@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=5e-4)
 
-    obs_graph = Data(path = args.path, batch_size = args.batch_size)
+    obs_graph = Data(path = args.path+args.dataset, batch_size = args.batch_size)
     obs_adj_matrix, test_adj_mat = obs_graph.get_adj_mat()
     obs_adj_matrix = torch.Tensor(obs_adj_matrix.toarray())
     test_adj_mat = torch.Tensor(test_adj_mat.toarray())
@@ -42,10 +42,11 @@ if __name__ == '__main__':
         
         t1 = time()
 
-        sampled_graph = sampled_graph_to_matrix(path = args.path, iteration = epoch, batch_size=args.batch_size)
+        sampled_graph = sampled_graph_to_matrix(path = args.path+args.dataset, iteration = epoch, batch_size=args.batch_size)
         adj_matrix = sampled_graph.get_adj_mat().toarray()
         adj_matrix = torch.Tensor(adj_matrix)
 
+        # n_batch = n_train // args.batch_size + 1
         n_batch = n_train // args.batch_size + 1
         print('Number of batch : ', n_batch)
 
@@ -91,7 +92,7 @@ if __name__ == '__main__':
             # print(f'iteration : {iteration+1} Train time : {time() - t1:.2f} train loss : {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}')
         # print(f'Epoch : {epoch+1} Train time : {time() - t1:.2f} train loss : {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}')
 
-        if (epoch + 1) % 10 != 0:
+        if (epoch + 1) % 2 != 0:
             if args.verbose > 0 and (epoch+1) % args.verbose == 0:
                 perf_str = f'Epoch {epoch+1}  Train time {(time() - t1)//60 :.0f}min {(time() - t1)%60 :.0f}sec | train loss = {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}'
                 print('Train: ', perf_str)

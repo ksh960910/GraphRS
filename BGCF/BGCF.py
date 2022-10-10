@@ -30,10 +30,10 @@ class BGCFLayer(nn.Module):
             'W_obs' : nn.Parameter(initializer(torch.empty(self.in_features, self.out_features)))
         })
         
-        self.embedding_dict = nn.ParameterDict({
-            'user_emb' : nn.Parameter(initializer(torch.empty(self.n_users, self.out_features))),
-            'item_emb' : nn.Parameter(initializer(torch.empty(self.n_items, self.out_features)))
-        })
+        # self.embedding_dict = nn.ParameterDict({
+        #     'user_emb' : nn.Parameter(initializer(torch.empty(self.n_users, self.out_features))),
+        #     'item_emb' : nn.Parameter(initializer(torch.empty(self.n_items, self.out_features)))
+        # })
 
     def rating(self, u_g_embeddings, pos_i_g_embeddings):
         return torch.matmul(u_g_embeddings, pos_i_g_embeddings.t())

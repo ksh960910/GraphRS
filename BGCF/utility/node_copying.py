@@ -31,9 +31,7 @@ class generate_graph(object):
         # return len(list(set(u_i_neighbor) & set(u_j_neighbor))) / len(list(set(u_i_neighbor) | set(u_j_neighbor)))
 
     # 새로운 graph의 node j 에다가 기존 graph의 어떤 node의 neighborhood를 복사할지 zeta에 담기
-    def node_copying(self, iteration):
-        self.iteration = iteration
-
+    def node_copying(self):
         t1 = time()
         zeta = []
         
@@ -41,12 +39,16 @@ class generate_graph(object):
             nor = 0
             zeta_distribution = []
             for u_i in self.user:
+                sim = self.jaccard_index(u_j, u_i, self.neighbor_dict)
+                zeta_distribution.append(sim)
                 nor+=self.jaccard_index(u_j, u_i, self.neighbor_dict)
-            for u_m in self.user:
-                zeta_distribution.append(self.jaccard_index(u_j, u_m, self.neighbor_dict) / nor)
+            zeta_distribution = np.asarray(zeta_distribution)
+            zeta_distribution = zeta_distribution / nor
+            # for u_m in self.user:
+            #     zeta_distribution.append(self.jaccard_index(u_j, u_m, self.neighbor_dict) / nor)
             zeta.append(random.choices(self.user, weights=zeta_distribution)[0])
         print('total node copying time cost : ', time() - t1)
-        np.save(self.path + '/zeta/zeta_epoch'+str(iteration+1)+'.npy', zeta)
+        np.save(self.path + '/zeta/zeta.npy', zeta)
         
         return zeta
     
