@@ -14,7 +14,7 @@ def parse_args():
     parser.add_argument('--layer_size', default=64, help='Output size of layer')
     parser.add_argument('--batch_size', type=int, default=1024, help='Batch size')
 
-    parser.add_argument('--regs', default=1e-5, help = 'Regularizations')
+    parser.add_argument('--regs', default=0.003, help = 'Regularizations')
     parser.add_argument('--lr', type=float, default=0.001, help = 'Learning rate')
     
     parser.add_argument('--gpu_id', type=int, default=0)

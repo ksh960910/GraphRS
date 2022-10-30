@@ -93,11 +93,11 @@ def test_one_user(x):
 
     test_items = list(all_items - set(training_items))
 
-    r, auc = ranklist_by_heapq(user_pos_test, test_items, rating, Ks)
+    r, auc = ranklist_by_sorted(user_pos_test, test_items, rating, Ks)
 
     return get_performance(user_pos_test, r, auc, Ks)
 
-def test(model, users_to_test, s_users_to_test, neg_items, adj_matrix, test_adj_mat, epoch):
+def test(model, users_to_test, s_users_to_test, neg_items, obs_neg_items, adj_matrix, test_adj_mat):
     result = {'precision': np.zeros(len(Ks)), 'recall': np.zeros(len(Ks)), 'ndcg': np.zeros(len(Ks)), 'auc': 0.}
 
     pool = multiprocessing.Pool(cores)
@@ -120,45 +120,44 @@ def test(model, users_to_test, s_users_to_test, neg_items, adj_matrix, test_adj_
         user_batch = test_users[start: end]
         s_user_batch = s_test_users[start: end]
 
-        n_item_batchs = ITEM_NUM // i_batch_size + 1
-        rate_batch = np.zeros(shape=(len(user_batch), ITEM_NUM))
+        # n_item_batchs = ITEM_NUM // i_batch_size + 1
+        # rate_batch = np.zeros(shape=(len(user_batch), ITEM_NUM))
 
-        i_count = 0
-        for i_batch_id in range(n_item_batchs):
-            i_start = i_batch_id * i_batch_size
-            i_end = min((i_batch_id + 1) * i_batch_size, ITEM_NUM)
+        # i_count = 0
+        # for i_batch_id in range(n_item_batchs):
+        #     i_start = i_batch_id * i_batch_size
+        #     i_end = min((i_batch_id + 1) * i_batch_size, ITEM_NUM)
 
-            item_batch = range(i_start, i_end)
-            u_g_embeddings, pos_i_g_embeddings, _ = model(s_user_batch,
-                                                          item_batch,
-                                                          neg_items,
-                                                          adj_matrix,
-                                                          user_batch,
-                                                          item_batch,
-                                                          [],
-                                                          test_adj_mat,
-                                                          epoch)
+        #     item_batch = range(i_start, i_end)
+        #     u_g_embeddings, pos_i_g_embeddings, _ = model(user_batch,
+        #                                                   item_batch,
+        #                                                   neg_items,
+        #                                                   adj_matrix,
+        #                                                   user_batch,
+        #                                                   item_batch,
+        #                                                   [],
+        #                                                   test_adj_mat,
+        #                                                   epoch)
 
-            i_rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
-        # item_batch = range(ITEM_NUM)
-        # u_g_embeddings, pos_i_g_embeddings, _  =  model(users,
-        #                                                 pos_items,
-        #                                                 neg_items,
-        #                                                 adj_matrix,
-        #                                                 user_batch,
-        #                                                 item_batch,
-        #                                                 [],
-        #                                                 test_adj_mat,
-        #                                                 epoch)
+        #     i_rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
+        item_batch = range(ITEM_NUM)
+        u_g_embeddings, pos_i_g_embeddings, _  =  model(user_batch,
+                                                        item_batch,
+                                                        neg_items,
+                                                        adj_matrix,
+                                                        user_batch,
+                                                        item_batch,
+                                                        obs_neg_items,
+                                                        test_adj_mat)
 
 
-        # rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
-            rate_batch[:, i_start: i_end] = i_rate_batch
-            i_count += i_rate_batch.shape[1]
+        rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
+        #     rate_batch[:, i_start: i_end] = i_rate_batch
+        #     i_count += i_rate_batch.shape[1]
 
-        assert i_count == ITEM_NUM
+        # assert i_count == ITEM_NUM
 
-        user_batch_rating_uid = zip(rate_batch, user_batch)
+        user_batch_rating_uid = zip(rate_batch.numpy(), user_batch)
         batch_result = pool.map(test_one_user, user_batch_rating_uid)
         count += len(batch_result)
 

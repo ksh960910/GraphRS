@@ -108,8 +108,8 @@ class Data(object):
 
     def create_test_adj_mat(self):
         # obs_adj_mat = self.R.todok()[:128,:]
-        # full_adj_mat = self.R.todok() + self.F.todok()
-        test_adj_mat = self.F.todok()
+        test_adj_mat = (self.R + self.F).todok()
+        # test_adj_mat = self.F.todok()
         print('already create test graph adjacency matrix', test_adj_mat.shape)
         return test_adj_mat.tocsr()
     
@@ -217,15 +217,15 @@ class sampled_graph_to_matrix(object):
         # except Exception:
         try:
             zeta = np.load(self.path + '/zeta/zeta.npy')
-            generate_graph(self.path).generate_graph(zeta=zeta, epsilon=args.epsilon, iteration=iteration)
+            generate_graph(self.path).generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
             # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
         
         except Exception:
             zeta = generate_graph(self.path).node_copying()
-            generate_graph(self.path).generate_graph(zeta=zeta, epsilon=args.epsilon, iteration=iteration)
+            generate_graph(self.path).generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
             # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
         
-        sampled_graph = self.path + '/sampled_graph/sampled_graph_epoch' + str(iteration+1) + '_epsilon' + str(args.epsilon)
+        sampled_graph = self.path + '/sampled_graph/sampled_graph_epoch' + str(iteration+1) + '_epsilon' + str(0.01)
 
         self.n_users, self.n_items = 0, 0
         self.n_train, self.n_test = 0, 0
