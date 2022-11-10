@@ -75,4 +75,4 @@ class generate_graph(object):
                     f.write(' ')
                 f.write(str(self.neighbor_dict[generated_node[i]][-1]))
                 f.write('\n')
-        print('#',iteration+1,' Graph sampled time cost : ', time() - t2)
+        # print('#',iteration+1,' Graph sampled time cost : ', time() - t2)

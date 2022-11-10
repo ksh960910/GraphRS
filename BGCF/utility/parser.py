@@ -13,14 +13,16 @@ def parse_args():
     parser.add_argument('--embed_size', type=int, default=64, help = 'Embedding size')
     parser.add_argument('--layer_size', default=64, help='Output size of layer')
     parser.add_argument('--batch_size', type=int, default=1024, help='Batch size')
+    parser.add_argument('--sample_num', type=int, default=5, help='Number of using generated graphs')
 
+    parser.add_argument('--l2', default=0.03, help='L2')
     parser.add_argument('--regs', default=0.003, help = 'Regularizations')
     parser.add_argument('--lr', type=float, default=0.001, help = 'Learning rate')
     
     parser.add_argument('--gpu_id', type=int, default=0)
 
     parser.add_argument('--node_dropout_flag', type=int, default=1, help='0: Disable node dropout, 1: Activate node dropout')
-    parser.add_argument('--node_dropout', default='[0.1]', 
+    parser.add_argument('--node_dropout', default='[0.2]', 
                         help='Keep probability w.r.t. node dropout (i.e., 1-dropout_ratio) for each deep layer. 1: no dropout')
     parser.add_argument('--mess_dropout', default='[0.1]',
                         help='Keep probability w.r.t. message dropout (i.e., 1-dropout_ratio) for each deep layer. 1 : no dropout')

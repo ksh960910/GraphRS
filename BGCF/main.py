@@ -26,16 +26,18 @@ if __name__ == '__main__':
     # 모델 정의
     model = BGCFLayer(n_users, n_items, args)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-8)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=0.003, weight_decay=1e-8)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
 
     obs_graph = Data(path = args.path+args.dataset, batch_size = args.batch_size)
     obs_adj_matrix, test_adj_mat = obs_graph.get_adj_mat()
-    obs_adj_matrix = torch.from_numpy(obs_adj_matrix.toarray())
-    test_adj_mat = torch.from_numpy(test_adj_mat.toarray())
+    
+    # obs_adj_matrix = torch.from_numpy(obs_adj_matrix.toarray())
+    # test_adj_mat = torch.from_numpy(test_adj_mat.toarray())
 
     # print(obs_adj_matrix.shape, test_adj_mat.shape)
 
-    loss, mf_loss, emb_loss = 0., 0., 0.
+    # loss, mf_loss, emb_loss = 0., 0., 0.
     loss_loger, pre_loger, rec_loger, ndcg_loger = [], [], [], []
     cur_best_pre_0, stopping_step = 0, 0
 
@@ -43,9 +45,8 @@ if __name__ == '__main__':
     for epoch in range(args.epoch): # args.epoch
         t1 = time()
 
-        sampled_graph = sampled_graph_to_matrix(path = args.path+args.dataset, iteration = epoch, batch_size=args.batch_size)
-        adj_matrix = sampled_graph.get_adj_mat()
-        adj_matrix = torch.from_numpy(adj_matrix.toarray())
+        loss, mf_loss, emb_loss = 0., 0., 0.
+
         # adj_matrix = torch.Tensor(adj_matrix).cuda()
 
         n_batch = n_train // args.batch_size + 1
@@ -54,54 +55,114 @@ if __name__ == '__main__':
         # for name, param in model.named_parameters():
         #     print(name, param)
 
-        for iteration in range(n_batch): #n_batch
-            with torch.autograd.set_detect_anomaly(True):
-                obs_users, obs_pos_items, obs_neg_items = obs_graph.sample()
-                
-                # test할 때 필요한 전체 
-                # full_users, full_pos_items, full_neg_items = obs_graph.full_sample()
-                # print(len(full_users), len(full_pos_items), len(full_neg_items))
-                
-                users, pos_items, neg_items = sampled_graph.sample(obs_users)
-                # print('sampled : ', adj_matrix.shape, len(users), len(pos_items))
+
+        # for iteration in range(n_batch): #n_batch
+            # final_u_g_embeddings = torch.zeros((args.batch_size, 192))
+            # final_pos_i_g_embeddings = torch.zeros((args.batch_size, 192))
+            # final_neg_i_g_embeddings = torch.zeros((args.batch_size, 192))
+            # sampled_graph = sampled_graph_to_matrix(path = args.path+args.dataset, iteration = epoch%5, batch_size=args.batch_size)
+            # adj_matrix = sampled_graph.get_adj_mat()
+            # # adj_matrix = torch.from_numpy(adj_matrix.toarray())
+
+            # obs_users, obs_pos_items, obs_neg_items = obs_graph.sample()
+            
+            # # test할 때 필요한 전체 
+            # # full_users, full_pos_items, full_neg_items = obs_graph.full_sample()
+            # # print(len(full_users), len(full_pos_items), len(full_neg_items))
+            
+            # users, pos_items, neg_items = sampled_graph.sample(obs_users)
+            # # print('sampled : ', adj_matrix.shape, len(users), len(pos_items))
 
 
-                '''불러오는 sampled graph matrix마다 pos, neg item set을 만들고
-                bpr loss 함수에다가 각 item들에 해당하는 embedding을 입력으로 넣어줌'''
+            # '''불러오는 sampled graph matrix마다 pos, neg item set을 만들고
+            # bpr loss 함수에다가 각 item들에 해당하는 embedding을 입력으로 넣어줌'''
 
 
+            # u_g_embeddings, pos_i_g_embeddings, neg_i_g_embeddings = model(users,
+            #                                                             pos_items,
+            #                                                             neg_items,
+            #                                                             adj_matrix,
+            #                                                             obs_users,
+            #                                                             obs_pos_items,
+            #                                                             obs_neg_items,
+            #                                                             obs_adj_matrix)
 
-                u_g_embeddings, pos_i_g_embeddings, neg_i_g_embeddings = model(users,
-                                                                            pos_items,
-                                                                            neg_items,
-                                                                            adj_matrix,
-                                                                            obs_users,
-                                                                            obs_pos_items,
-                                                                            obs_neg_items,
-                                                                            obs_adj_matrix)
+            # final_u_g_embeddings+=u_g_embeddings/2
+            # final_pos_i_g_embeddings+=pos_i_g_embeddings/2
+            # final_neg_i_g_embeddings+=neg_i_g_embeddings/2
+         #n_batch
 
-                # u_g_embeddings /= args.epoch
-                # pos_i_g_embeddings /= args.epoch
-                # neg_i_g_embeddings /= args.epoch
 
-                
-                batch_loss, batch_mf_loss, batch_emb_loss = model.create_bpr_loss(u_g_embeddings,
-                                                                                pos_i_g_embeddings,
-                                                                                neg_i_g_embeddings)
-                
-                optimizer.zero_grad()
-                batch_loss.backward()
-                optimizer.step()
+        obs_user_n_j, obs_item_n_j = model.count_neighbor(obs_adj_matrix)
 
-                loss+=batch_loss
-                mf_loss+=batch_mf_loss
-                emb_loss+=batch_emb_loss
+        # for i in range(args.sample_num):
+        sampled_graph = sampled_graph_to_matrix(path = args.path+args.dataset, iteration = 0, batch_size=args.batch_size)
+        adj_matrix = sampled_graph.get_adj_mat()
+
+        sample_user_n_j, sample_item_n_j = model.count_neighbor(adj_matrix)
+
+        for itr in range(50):
+            final_u_g_embeddings = torch.zeros((args.batch_size, 192))
+            final_pos_i_g_embeddings = torch.zeros((args.batch_size, 192))
+            final_neg_i_g_embeddings = torch.zeros((args.batch_size, 192))
+        # adj_matrix = torch.from_numpy(adj_matrix.toarray())
+            obs_users, obs_pos_items, obs_neg_items = obs_graph.sample()
+            
+            # test할 때 필요한 전체 
+            # full_users, full_pos_items, full_neg_items = obs_graph.full_sample()
+            # print(len(full_users), len(full_pos_items), len(full_neg_items))
+            
+            users, pos_items, neg_items = sampled_graph.sample(obs_users)
+            # print('sampled : ', adj_matrix.shape, len(users), len(pos_items))
+
+
+            '''불러오는 sampled graph matrix마다 pos, neg item set을 만들고
+            bpr loss 함수에다가 각 item들에 해당하는 embedding을 입력으로 넣어줌'''
+
+
+            u_g_embeddings, pos_i_g_embeddings, neg_i_g_embeddings = model(users,
+                                                                        pos_items,
+                                                                        neg_items,
+                                                                        sample_user_n_j,
+                                                                        sample_item_n_j,
+                                                                        adj_matrix,
+                                                                        obs_users,
+                                                                        obs_pos_items,
+                                                                        obs_neg_items,
+                                                                        obs_user_n_j,
+                                                                        obs_item_n_j,
+                                                                        obs_adj_matrix)
+            # u_g_embeddings = u_g_embeddings.detach().numpy()
+            # pos_i_g_embeddings = pos_i_g_embeddings.detach().numpy()
+            # neg_i_g_embeddings = neg_i_g_embeddings.detach().numpy()
+            final_u_g_embeddings += u_g_embeddings
+            final_pos_i_g_embeddings += pos_i_g_embeddings
+            final_neg_i_g_embeddings += neg_i_g_embeddings
+
+            final_u_g_embeddings /= args.sample_num
+            final_pos_i_g_embeddings /= args.sample_num
+            final_neg_i_g_embeddings /= args.sample_num
+
+            # batch_loss ,batch_mf_loss, batch_emb_loss = model.create_bpr_loss(u_g_embeddings,
+            #                                                                   pos_i_g_embeddings,
+            #                                                                   neg_i_g_embeddings)
+            batch_loss, batch_mf_loss, batch_emb_loss = model.create_bpr_loss(final_u_g_embeddings,
+                                                                              final_pos_i_g_embeddings,
+                                                                              final_neg_i_g_embeddings)
+            
+            optimizer.zero_grad()
+            batch_loss.backward()
+            optimizer.step()
+
+            loss+=batch_loss
+            mf_loss+=batch_mf_loss
+            emb_loss+=batch_emb_loss
             
             # 나중에 아래줄은 지울것
             # print(f'iteration : {iteration+1} Train time : {time() - t1:.2f} train loss : {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}')
         # print(f'Epoch : {epoch+1} Train time : {time() - t1:.2f} train loss : {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}')
 
-        if (epoch + 1) % 10 != 0:
+        if (epoch + 1) % 1 != 0:
             if args.verbose > 0 and (epoch+1) % args.verbose == 0:
                 perf_str = f'Epoch {epoch+1}  Train time {(time() - t1)//60 :.0f}min {(time() - t1)%60 :.0f}sec | train loss = {loss:.5f} = {mf_loss:.5f} + {emb_loss:.5f}'
                 print('Train: ', perf_str)
@@ -109,9 +170,9 @@ if __name__ == '__main__':
         
         t2 = time()
         users_to_test = list(data.test_set.keys())
-        s_users_to_test = list(sampled_graph.train_items.keys())
+        # s_users_to_test = list(sampled_graph.train_items.keys())
         # ret = test(model, users_to_test, s_users_to_test, neg_items, adj_matrix, test_adj_mat, epoch)
-        ret = test(model, users_to_test, s_users_to_test, neg_items, obs_neg_items, adj_matrix, test_adj_mat)
+        ret = test(model, users_to_test, neg_items, obs_neg_items, test_adj_mat)
 
         t3 = time()
 
@@ -128,7 +189,7 @@ if __name__ == '__main__':
         print('Test : ', perf_str) 
 
         cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['recall'][0], cur_best_pre_0,
-                                                                    stopping_step, expected_order='acc', flag_step=5)
+                                                                    stopping_step, expected_order='acc', flag_step=100)
 
         # *********************************************************
         # early stopping when cur_best_pre_0 is decreasing for ten successive steps.

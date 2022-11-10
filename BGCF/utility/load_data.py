@@ -104,14 +104,14 @@ class Data(object):
         # obs_adj_mat = self.R.todok()[:128,:]
         obs_adj_mat = self.R.todok()
         print('already create observed graph adjacency matrix', obs_adj_mat.shape)
-        return obs_adj_mat.tocsr()
+        return obs_adj_mat.tocoo()
 
     def create_test_adj_mat(self):
         # obs_adj_mat = self.R.todok()[:128,:]
         test_adj_mat = (self.R + self.F).todok()
         # test_adj_mat = self.F.todok()
         print('already create test graph adjacency matrix', test_adj_mat.shape)
-        return test_adj_mat.tocsr()
+        return test_adj_mat.tocoo()
     
     # bgcf는 G_obs로부터 만들어진 sampled graphs에 대해 x hat들의 integral을 구함
     def sample(self):
@@ -275,9 +275,16 @@ class sampled_graph_to_matrix(object):
     
      
     def create_adj_mat(self):
+        # adj_mat = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
+        # adj_mat = adj_mat.tolil()
+        # R = self.R.tolil()
+
+        # adj_mat[:,:] = R
+        # adj_mat = adj_mat.todok()
+        # print('already create adjacency matrix', adj_mat.shape)
         adj_mat = self.R.todok()
         print('already create adjacency matrix', adj_mat.shape)
-        return adj_mat.tocsr()
+        return adj_mat.tocoo()
     
     def negative_pool(self):
         t1 = time()
