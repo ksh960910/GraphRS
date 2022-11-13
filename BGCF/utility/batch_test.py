@@ -114,7 +114,7 @@ def test(model, users_to_test, neg_items, obs_neg_items, test_adj_mat):
     n_user_batchs = n_test_users // u_batch_size + 1
     count = 0
 
-    test_user_n_j, test_item_n_j = model.count_neighbor(test_adj_mat)
+    # test_user_n_j, test_item_n_j = model.count_neighbor(test_adj_mat)
 
     for u_batch_id in range(n_user_batchs):
         start = u_batch_id * u_batch_size
@@ -144,28 +144,24 @@ def test(model, users_to_test, neg_items, obs_neg_items, test_adj_mat):
 
         #     i_rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
         item_batch = range(ITEM_NUM)
-        final_u_g_embeddings = torch.zeros((len(user_batch), 192))
-        final_pos_i_g_embeddings= torch.zeros((len(item_batch), 192))
-        for i in range(args.sample_num):
-            sampled_graph = sampled_graph_to_matrix(path = args.path+args.dataset, iteration = i, batch_size=args.batch_size)
-            adj_matrix = sampled_graph.get_adj_mat()
-            sample_user_n_j, sample_item_n_j = model.count_neighbor(adj_matrix)
-            # adj_matrix = torch.from_numpy(adj_matrix.toarray())
-            u_g_embeddings, pos_i_g_embeddings, _  =  model(user_batch,
-                                                            item_batch,
-                                                            neg_items,
-                                                            sample_user_n_j,
-                                                            sample_item_n_j,
-                                                            adj_matrix,
-                                                            user_batch,
-                                                            item_batch,
-                                                            obs_neg_items,
-                                                            test_user_n_j,
-                                                            test_item_n_j,
-                                                            test_adj_mat)
+        # final_u_g_embeddings = torch.zeros((len(user_batch), 192)).to(args.device)
+        # final_pos_i_g_embeddings= torch.zeros((len(item_batch), 192)).to(args.device)
+        # for i in range(args.sample_num):
+        sampled_graph = sampled_graph_to_matrix(path = args.path+args.dataset, iteration = 1, batch_size=args.batch_size)
+        adj_matrix = sampled_graph.get_adj_mat()
+        # sample_user_n_j, sample_item_n_j = model.get_count_neighbor(adj_matrix, iteration = 1)
 
-            final_u_g_embeddings+=u_g_embeddings/args.sample_num
-            final_pos_i_g_embeddings+=pos_i_g_embeddings/args.sample_num
+        u_g_embeddings, pos_i_g_embeddings, _  =  model(user_batch,
+                                                        item_batch,
+                                                        neg_items,
+                                                        adj_matrix,
+                                                        user_batch,
+                                                        item_batch,
+                                                        obs_neg_items,
+                                                        test_adj_mat)
+
+            # final_u_g_embeddings+=u_g_embeddings/args.sample_num
+            # final_pos_i_g_embeddings+=pos_i_g_embeddings/args.sample_num
         # sampled_graph = sampled_graph_to_matrix(path = args.path+args.dataset, iteration = u_batch_id%5, batch_size=args.batch_size)
         # adj_matrix = sampled_graph.get_adj_mat()
         # adj_matrix = torch.from_numpy(adj_matrix.toarray())
@@ -179,8 +175,8 @@ def test(model, users_to_test, neg_items, obs_neg_items, test_adj_mat):
         #                                                 test_adj_mat)
 
 
-        # rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
-        rate_batch = model.rating(final_u_g_embeddings, final_pos_i_g_embeddings).detach().cpu()
+        rate_batch = model.rating(u_g_embeddings, pos_i_g_embeddings).detach().cpu()
+        # rate_batch = model.rating(final_u_g_embeddings, final_pos_i_g_embeddings).detach().cpu()
         #     rate_batch[:, i_start: i_end] = i_rate_batch
         #     i_count += i_rate_batch.shape[1]
 

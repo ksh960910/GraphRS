@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import sys
+import numpy as np
 
 class AttenConv(nn.Module):
     def __init__(self, user_emb, item_emb, args, flag=True):
@@ -17,50 +18,50 @@ class AttenConv(nn.Module):
         # self.attention_weight = nn.Parameter(initializer(torch.empty(self.in_features * 2 , self.out_features)))
 
     def forward(self, adj_matrix):
-        
-            # if self.flag==True:
-            #     score = torch.sparse.mm(adj_matrix, self.item_emb)
-            #     score = torch.inner(score, self.item_emb)
-            #     # score = torch.where(adj_matrix > 0, score, 0)
+            # 가장 최근, 0.1~ 0.4에서 계속 왔다갔다
+            # if self.flag == True:
+            #     e_j = torch.matmul(self.user_emb, self.attention_weight) # 6040 64
+            #     e_k = torch.sparse.mm(adj_matrix.t(), self.user_emb) # 3090 64
+            #     e_k = torch.matmul(e_k, self.attention_weight) # 3090 64
+            #     score = torch.matmul(e_j, e_k.t()) # 6040 3090
             #     score = F.softmax(score, dim=1)
-                
-            #     coef = torch.matmul(score, self.item_emb)
-            #     # output = torch.matmul(coef, self.attention_weight)
-            #     output = torch.matmul(torch.concat((coef, self.user_emb), dim=1), self.attention_weight)
+
+            #     output = torch.matmul(score, e_k) # 6040 64
+            #     output = torch.matmul(output, self.attention_weight)
 
             #     return output
-                
+
             # else:
-            #     score = torch.sparse.mm(adj_matrix.t(), self.user_emb)
-            #     score = torch.inner(score, self.user_emb)
-            #     # score = torch.sparse.mm(adj_matrix, score)
-            #     # score - torch.where(adj_matrix.t() > 0, score, 0)
+            #     e_j = torch.matmul(self.item_emb, self.attention_weight) # 3090 64
+            #     e_k = torch.sparse.mm(adj_matrix, self.item_emb) # 6040 64
+            #     e_k = torch.matmul(e_k, self.attention_weight) # 6040 64 
+            #     score = torch.matmul(e_j, e_k.t()) # 3090 6040
             #     score = F.softmax(score, dim=1)
 
-            #     coef = torch.matmul(score, self.user_emb)
-            #     # output = torch.matmul(coef, self.attention_weight)
-            #     output = torch.matmul(torch.concat((coef, self.item_emb), dim=1), self.attention_weight)
-
+            #     output = torch.matmul(score, e_k)
+            #     output = torch.matmul(output, self.attention_weight)
+                
             #     return output
-            
-            if self.flag==True:
-                e_k = torch.sparse.mm(adj_matrix.t(), self.user_emb)
-                e_k = torch.matmul(e_k, self.attention_weight)
-                e_j = torch.matmul(self.user_emb, self.attention_weight)
-                score = torch.inner(e_j, e_k)
-                score = F.softmax(score, dim=1)
-                output = torch.matmul(score, self.item_emb)
-                output = torch.matmul(output, self.attention_weight)
-                return output
-            else:
-                e_k = torch.sparse.mm(adj_matrix, self.item_emb)
-                e_k = torch.matmul(e_k, self.attention_weight)
-                e_j = torch.matmul(self.item_emb, self.attention_weight)
-                score = torch.inner(e_j, e_k)
-                score = F.softmax(score, dim=1)
-                output = torch.matmul(score, self.user_emb)
-                output = torch.matmul(output, self.attention_weight)
-                return output
+                
+
+            # if self.flag==True:
+            #     e_k = torch.sparse.mm(adj_matrix.t(), self.user_emb)
+            #     e_k = torch.matmul(e_k, self.attention_weight)
+            #     e_j = torch.matmul(self.user_emb, self.attention_weight)
+            #     score = torch.inner(e_j, e_k)
+            #     score = F.softmax(score, dim=1)
+            #     output = torch.matmul(score, self.item_emb)
+            #     output = torch.matmul(output, self.attention_weight)
+            #     return output
+            # else:
+            #     e_k = torch.sparse.mm(adj_matrix, self.item_emb)
+            #     e_k = torch.matmul(e_k, self.attention_weight)
+            #     e_j = torch.matmul(self.item_emb, self.attention_weight)
+            #     score = torch.inner(e_j, e_k)
+            #     score = F.softmax(score, dim=1)
+            #     output = torch.matmul(score, self.user_emb)
+            #     output = torch.matmul(output, self.attention_weight)
+            #     return output
 
             # if self.flag==True:
             #     score = torch.sparse.mm(adj_matrix.t(), self.user_emb)
@@ -77,6 +78,26 @@ class AttenConv(nn.Module):
             #     output = torch.matmul(output, self.attention_weight)
             #     return output
 
+            if self.flag==True:
+                score = torch.sparse.mm(adj_matrix.t(), self.user_emb) # 3090 64
+                score = torch.matmul(score, self.attention_weight)
+                atten = torch.inner(self.user_emb, score) # 6040 3090
+                atten = F.softmax(atten, dim=1)
+
+                output = torch.matmul(atten, score) # 6040 64
+                output = torch.matmul(output, self.attention_weight)
+                return output
+
+            else:
+                score = torch.sparse.mm(adj_matrix, self.item_emb) # 6040 64
+                score = torch.matmul(score, self.attention_weight)
+                atten = torch.inner(self.item_emb, score) # 3090 6040
+                atten = F.softmax(atten, dim=1)
+
+                output = torch.matmul(atten, score) # 3090 64
+                output = torch.matmul(output, self.attention_weight)
+                return output
+
 class MeanConv(nn.Module):
     def __init__(self, user_emb, item_emb, args, flag=True):
         super(MeanConv, self).__init__()
@@ -91,8 +112,22 @@ class MeanConv(nn.Module):
         # self.mean_weight = nn.Parameter(initializer(torch.empty(self.in_features * 2 , self.out_features)), requires_grad=True)
 
     def forward(self, adj_matrix, user_n_j, item_n_j):
+        # if self.flag==False:
+        #     e_k = torch.sparse.mm(adj_matrix.t(), self.user_emb)
+        #     e_k = torch.matmul(e_k, self.mean_weight) # 3090 64
+        #     e_k = torch.mul(e_k, item_n_j)
+        #     output = torch.matmul(e_k, self.mean_weight)
+        #     return output
+        # else:
+        #     e_k = torch.sparse.mm(adj_matrix, self.item_emb)
+        #     e_k = torch.matmul(e_k, self.mean_weight)
+        #     e_k = torch.mul(e_k, user_n_j)
+        #     output = torch.matmul(e_k, self.mean_weight)
+        #     return output
+
         if self.flag==True:
-            e_k = torch.sparse.mm(adj_matrix, self.item_emb) 
+            e_k = torch.sparse.mm(adj_matrix, self.item_emb) #6040 64
+            e_k = torch.matmul(e_k, self.mean_weight)
             e_k = torch.mul(e_k, user_n_j)
             # e_k = e_k / e_k.shape[0]
             # e_k = torch.mean(e_k, dim=1)
@@ -101,38 +136,13 @@ class MeanConv(nn.Module):
             return output
         else:
             e_k = torch.sparse.mm(adj_matrix.t(), self.user_emb)
+            e_k = torch.matmul(e_k, self.mean_weight)
             e_k = torch.mul(e_k, item_n_j)
             # e_k = e_k / e_k.shape[0]
             # e_k = torch.mean(e_k, dim=1)
             output = torch.matmul(e_k, self.mean_weight)
             # output = torch.matmul(torch.concat((self.item_emb, e_k), dim=1), self.mean_weight)
             return output
-
-
-        # self.n_users = self.user_emb.shape[0]
-        # self.n_items = self.item_emb.shape[0]
-
-        # neighbor_num_user, neighbor_num_item = torch.zeros(self.n_users), torch.zeros(self.n_items)
-        # for i in range(self.n_users):
-        #     # neighbor_num_user[i] = sum(adj_matrix[i])
-        #     neighbor_num_user[i] = torch.sum(adj_matrix[i])
-        # for j in range(self.n_items):
-        #     # neighbor_num_item[j] = sum(adj_matrix.T[j])
-        #     neighbor_num_item[j] = torch.sum(adj_matrix.T[j])
-        # # neighbor_num은 n_j에 해당하는 부분
-        
-        # if self.flag == True:
-        #     output = torch.sparse.mm(adj_matrix, self.item_emb)
-        #     output = torch.mul(output, user_n_j)
-        #     output = torch.matmul(output, self.mean_weight)
-        #     # output = torch.matmul(torch.concat((output, self.user_emb), dim=1), self.mean_weight)
-        # else:
-        #     output = torch.sparse.mm(adj_matrix.t(), self.user_emb)
-        #     output = torch.mul(output, item_n_j)
-        #     output = torch.matmul(output, self.mean_weight)
-        #     # output = torch.matmul(torch.concat((output, self.item_emb), dim=1), self.mean_weight)
-
-        # return output
 
 
 
@@ -146,6 +156,7 @@ class BGCFLayer(nn.Module):
         self.in_features = args.embed_size      # 기존 노드의 embedding 차원수 
         self.out_features = args.layer_size    # 결과 weight의 embedding 차원수
         self.device = torch.device('cuda:' + str(args.gpu_id))
+        self.path = args.path
 
 
         self.node_dropout = eval(args.node_dropout)[0]
@@ -170,8 +181,8 @@ class BGCFLayer(nn.Module):
         # })
 
         initializer = nn.init.xavier_uniform_
-        self.user_emb = initializer(torch.empty(self.n_users, self.out_features))
-        self.item_emb = initializer(torch.empty(self.n_items, self.out_features))
+        self.user_emb = initializer(torch.empty(self.n_users, self.out_features)).to(self.device)
+        self.item_emb = initializer(torch.empty(self.n_items, self.out_features)).to(self.device)
 
         self.sampled_attention_user = AttenConv(self.user_emb, self.item_emb, args, flag=True)
         self.sampled_attention_item = AttenConv(self.user_emb, self.item_emb, args, flag=False)
@@ -207,6 +218,24 @@ class BGCFLayer(nn.Module):
     #             item_n_j[j] = 1e-8
 
     #     return user_n_j, item_n_j
+
+    def get_count_neighbor(self, X, iteration):
+        try:
+            final_user_n_j = torch.from_numpy(np.load(self.path + 'sample_graph_'+str(iteration)+'_user_neighbor.npy'))
+            final_item_n_j = torch.from_numpy(np.load(self.path + 'sample_graph_'+str(iteration)+'_item_neighbor.npy'))
+
+        except:
+            final_user_n_j, final_item_n_j = self.count_neighbor(X)
+            final_user_n_j = final_user_n_j.numpy()
+            final_item_n_j = final_item_n_j.numpy()
+            np.save(self.path + 'sample_graph_'+str(iteration)+'_user_neighbor', final_user_n_j)
+            np.save(self.path + 'sample_graph_'+str(iteration)+'_item_neighbor', final_item_n_j)
+            final_user_n_j = torch.from_numpy(np.load(self.path + 'sample_graph_'+str(iteration)+'_user_neighbor.npy'))
+            final_item_n_j = torch.from_numpy(np.load(self.path + 'sample_graph_'+str(iteration)+'_item_neighbor.npy'))
+
+        return final_user_n_j, final_item_n_j
+
+
 
     def count_neighbor(self, X):
         n_users, n_items = X.shape[0], X.shape[1]
@@ -281,56 +310,26 @@ class BGCFLayer(nn.Module):
                 users,
                 pos_items, 
                 neg_items,
-                sample_user_n_j,
-                sample_item_n_j, 
                 adj_matrix,
                 obs_users,
                 obs_pos_items, 
                 obs_neg_items, 
-                obs_user_n_j,
-                obs_item_n_j,
-                obs_adj_matrix):
+                obs_adj_matrix,
+                ):
                 
-        # sample_neighbor_num_user, sample_neighbor_num_item = self.count_neighbor(adj_matrix)
-        # obs_neighbor_num_user, obs_neighbor_num_item = self.count_neighbor(obs_adj_matrix)
-        # 좀전에 고친부분
-        # sample_user_n_j, sample_item_n_j = self.count_neighbor(adj_matrix)
-        # obs_user_n_j, obs_item_n_j = self.count_neighbor(obs_adj_matrix)
         adj_matrix = self._convert_sp_mat_to_sp_tensor(adj_matrix)
         obs_adj_matrix = self._convert_sp_mat_to_sp_tensor(obs_adj_matrix)
 
-        adj_matrix = self.sparse_dropout(adj_matrix, self.node_dropout, adj_matrix._nnz())
-        obs_adj_matrix = self.sparse_dropout(obs_adj_matrix, self.node_dropout, obs_adj_matrix._nnz())
+        adj_matrix = self.sparse_dropout(adj_matrix, self.node_dropout, adj_matrix._nnz()).to(self.device)
+        obs_adj_matrix = self.sparse_dropout(obs_adj_matrix, self.node_dropout, obs_adj_matrix._nnz()).to(self.device)
 
-        # self.adj_matrix = self._convert_sp_mat_to_sp_tensor(adj_matrix)
-        # torch.cuda.empty_cache()
-        # self.obs_adj_matrix = self._convert_sp_mat_to_sp_tensor(obs_adj_matrix)
-        # self.iteration = iteration
-        # coef = torch.zeros(self.n_users, self.n_items)
-        
-        # # score는 각각 user-item 간의 attention score
-        # score = torch.exp(torch.inner(self.user_emb, self.item_emb))
-        # score = torch.multiply(score, self.adj_matrix)
-        # # score = score.mul(self.adj_matrix)
-        
-        # for i in range(score.shape[0]):
-        #     norm = torch.sum(score[i])
-        #     # norm += 1e-6
-        #     normalized_score = score[i] / norm
-        #     coef[i] = normalized_score
+        sample_user_n_j, sample_item_n_j = self.get_count_neighbor(adj_matrix, 1)
+        obs_user_n_j, obs_item_n_j = self.get_count_neighbor(obs_adj_matrix, 0)
 
-        # coef에다가 normalized된 최종적인 attention score 저장
-        # w_1_user = self.weight_dict['W_1_user']
-        # w_1_item = self.weight_dict['W_1_item']
-        # w_2_user = self.weight_dict['W_2_user']
-        # w_2_item = self.weight_dict['W_2_item']
-
-        # coef = coef.cuda()
-        # # h_tilde_1은 w_1과 곱해지는 부분의 embedding (e_k)를 user와 item으로 쪼개서 계산후 concat
-        # h_tilde_1_user = torch.matmul(coef, self.item_emb)
-        # h_tilde_1_user = torch.matmul(h_tilde_1_user, w_1_user)
-        # h_tilde_1_item = torch.matmul(coef.T, self.user_emb)
-        # h_tilde_1_item = torch.matmul(h_tilde_1_item, w_1_item)
+        sample_user_n_j = sample_user_n_j.to(self.device)
+        sample_item_n_j = sample_item_n_j.to(self.device)
+        obs_user_n_j = obs_user_n_j.to(self.device)
+        obs_item_n_j = obs_item_n_j.to(self.device)
 
         h_tilde_1_user = self.sampled_attention_user(adj_matrix)
         h_tilde_1_item = self.sampled_attention_item(adj_matrix)
@@ -338,102 +337,36 @@ class BGCFLayer(nn.Module):
         h_tilde_2_user = self.sampled_mean_user(adj_matrix, sample_user_n_j, sample_item_n_j)
         h_tilde_2_item = self.sampled_mean_item(adj_matrix, sample_user_n_j, sample_item_n_j)
         
-        # neighbor_num_user, neighbor_num_item = torch.zeros(self.n_users), torch.zeros(self.n_items)
-        # for i in range(self.n_users):
-        #     # neighbor_num_user[i] = sum(adj_matrix[i])
-        #     neighbor_num_user[i] = torch.sum(self.adj_matrix[i])
-        # for j in range(self.n_items):
-        #     # neighbor_num_item[j] = sum(adj_matrix.T[j])
-        #     neighbor_num_item[j] = torch.sum(self.adj_matrix.T[j])
-        # # neighbor_num은 n_j에 해당하는 부분
-        
-        # # h_tilde_2는 w_2와 곱해지는 부분
-        # h_tilde_2_user = torch.matmul(self.adj_matrix, self.item_emb)
-        # # h_tilde_2_user = torch.matmul(neighbor_num_user, h_tilde_2_user)
-        # # (1 / 각 user의 neighbor의 수) 만큼 item embedding에 곱해주는 과정
-        # for i in range(neighbor_num_user.shape[0]):
-        #     h_tilde_2_user[i] = (1 / (neighbor_num_user[i] + 1e-6)) * h_tilde_2_user[i]
-        # h_tilde_2_user = torch.matmul(h_tilde_2_user, w_2_user)
-        # h_tilde_2_item = torch.matmul(self.adj_matrix.T, self.user_emb)
-        # # h_tilde_2_item = torch.matmul(neighbor_num_item, h_tilde_2_item)
-        # # 각 item의 neighbor의 수 만큼 user embedding에 곱해주는 과정
-        # for j in range(neighbor_num_item.shape[0]):
-        #     h_tilde_2_item[j] = (1 / (neighbor_num_item[j] + 1e-6)) * h_tilde_2_item[j]
-        # h_tilde_2_item = torch.matmul(h_tilde_2_item, w_2_item)
-        # # h_tilde_2 = torch.cat((h_tilde_2_user, h_tilde_2_item), dim=0)
         
         h_tilde_sampled_user = torch.cat((h_tilde_1_user, h_tilde_2_user), dim=1)
         h_tilde_sampled_item = torch.cat((h_tilde_1_item, h_tilde_2_item), dim=1)
+
+        # h_tilde_sampled_user = F.normalize(h_tilde_sampled_user, p=4)
+        # h_tilde_sampled_item = F.normalize(h_tilde_sampled_item, p=4)
 
         
         h_tilde_sampled_user = h_tilde_sampled_user[users,:]
         h_tilde_sampled_pos_item = h_tilde_sampled_item[pos_items,:]
         h_tilde_sampled_neg_item = h_tilde_sampled_item[neg_items,:]
         
-
-        ### h_tilde_observed 
-        # w_obs_user = self.weight_dict['W_obs_user']
-        # w_obs_item = self.weight_dict['W_obs_item']
         h_tilde_obs_user = torch.tanh(self.obs_user(obs_adj_matrix, obs_user_n_j, obs_item_n_j))
         h_tilde_obs_item = torch.tanh(self.obs_item(obs_adj_matrix, obs_user_n_j, obs_item_n_j))
 
-        
-        
-        # # observed graph의 neighbor 정보 
-        # obs_neighbor_num_user, obs_neighbor_num_item = torch.zeros(self.n_users), torch.zeros(self.n_items)
-        # # 각 원소 = 각 node의 neighbor수
-        # for i in range(self.n_users):
-        #     # obs_neighbor_num_user[i] = sum(obs_adj_matrix[i])
-        #     obs_neighbor_num_user[i] = torch.sum(self.obs_adj_matrix[i])
-        # for j in range(self.n_items):
-        #     # obs_neighbor_num_item[j] = sum(obs_adj_matrix.T[j])
-        #     obs_neighbor_num_item[j] = torch.sum(self.obs_adj_matrix.T[j])
-        # # neighbor_num은 n_j에 해당하는 부분
-        
-        # # h_tilde_obs_user
-        # h_tilde_obs_user = torch.matmul(self.obs_adj_matrix, self.item_emb)
-        # for i in range(obs_neighbor_num_user.shape[0]):
-        #     h_tilde_obs_user[i] = (1 / (obs_neighbor_num_user[i] + 1e-6)) * h_tilde_obs_user[i]
-        # h_tilde_obs_user = torch.sigmoid(torch.matmul(h_tilde_obs_user, w_obs_user))
-        
-        # # h_tilde_obs_item
-        # h_tilde_obs_item = torch.matmul(self.obs_adj_matrix.T, self.user_emb)
-        # for j in range(obs_neighbor_num_item.shape[0]):
-        #     h_tilde_obs_item[j] = (1 / (obs_neighbor_num_item[j] + 1e-6)) * h_tilde_obs_item[j]
-        # h_tilde_obs_item = torch.sigmoid(torch.matmul(h_tilde_obs_item, w_obs_item))
+        # h_tilde_obs_user = F.normalize(h_tilde_obs_user, p=4)
+        # h_tilde_obs_item = F.normalize(h_tilde_obs_item, p=4)
         
         h_tilde_obs_user = h_tilde_obs_user[obs_users,:]
         h_tilde_obs_pos_item = h_tilde_obs_item[obs_pos_items,:]
         h_tilde_obs_neg_item = h_tilde_obs_item[obs_neg_items,:]
 
-        # # Final embedding
-        # h_tilde_user = torch.cat((h_tilde_sampled_user, h_tilde_obs_user), dim=1)
-        # h_tilde_pos_item = torch.cat((h_tilde_sampled_pos_item, h_tilde_obs_pos_item), dim=1)
-        # if h_tilde_obs_neg_item.shape[0] !=0:
-        #     h_tilde_neg_item = torch.cat((h_tilde_sampled_neg_item, h_tilde_obs_neg_item), dim=1)
-        # else:
-        #     h_tilde_neg_item = h_tilde_sampled_neg_item
-
-        # h_tilde_user = nn.Tanh()(h_tilde_user)
-        # h_tilde_pos_item = nn.Tanh()(h_tilde_pos_item)
-        # h_tilde_neg_item = nn.Tanh()(h_tilde_neg_item)
-        
         # Final embedding
         h_tilde_user = torch.tanh(torch.cat((h_tilde_sampled_user, h_tilde_obs_user), dim=1))
         h_tilde_pos_item = torch.tanh(torch.cat((h_tilde_sampled_pos_item, h_tilde_obs_pos_item), dim=1))
         h_tilde_neg_item = torch.tanh(torch.cat((h_tilde_sampled_neg_item, h_tilde_obs_neg_item), dim=1))
-        # if h_tilde_obs_neg_item.shape[0] !=0:
-        #     h_tilde_neg_item = torch.tanh(torch.cat((h_tilde_sampled_neg_item, h_tilde_obs_neg_item), dim=1))
-        # else:
-        #     h_tilde_neg_item = torch.tanh(h_tilde_sampled_neg_item)
-
-        # h_tilde_user = nn.Dropout(self.mess_dropout)(h_tilde_user)
-        # h_tilde_pos_item = nn.Dropout(self.mess_dropout)(h_tilde_pos_item)
-        # h_tilde_neg_item = nn.Dropout(self.mess_dropout)(h_tilde_neg_item)
         
-        h_tilde_user = F.normalize(h_tilde_user, p=2)
-        h_tilde_pos_item = F.normalize(h_tilde_pos_item, p=2)
-        h_tilde_neg_item = F.normalize(h_tilde_neg_item, p=2)
+        h_tilde_user = F.normalize(h_tilde_user, p=5)
+        h_tilde_pos_item = F.normalize(h_tilde_pos_item, p=5)
+        h_tilde_neg_item = F.normalize(h_tilde_neg_item, p=5)
 
 
         return h_tilde_user, h_tilde_pos_item, h_tilde_neg_item

@@ -209,15 +209,10 @@ class sampled_graph_to_matrix(object):
         self.path =path
         self.iteration = iteration
         self.batch_size = batch_size
-
-        # try:
-        #     zeta = zeta = np.load(self.path + '/zeta/zeta.npy')
-            # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
-
-        # except Exception:
+        
         try:
             zeta = np.load(self.path + '/zeta/zeta.npy')
-            generate_graph(self.path).generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+            # generate_graph(self.path).generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
             # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
         
         except Exception:
