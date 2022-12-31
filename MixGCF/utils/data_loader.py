@@ -19,6 +19,18 @@ def read_cf_amazon(file_name):
 def read_cf_movielens(file_name):
     return np.loadtxt(file_name, dtype=np.int32)
 
+def read_cf_gowalla(file_name):
+    inter_mat = list()
+    lines = open(file_name, "r").readlines()
+    for l in lines:
+        tmps = l.strip()
+        inters = [int(i) for i in tmps.split(" ")]
+        u_id, pos_ids = inters[0], inters[1:]
+        pos_ids = list(set(pos_ids))
+        for i_id in pos_ids:
+            inter_mat.append([u_id, i_id])
+    return np.array(inter_mat)
+
 
 def read_cf_yelp2018(file_name):
     inter_mat = list()
@@ -38,7 +50,7 @@ def statistics(train_data, valid_data, test_data):
     n_users = max(max(train_data[:, 0]), max(valid_data[:, 0]), max(test_data[:, 0])) + 1
     n_items = max(max(train_data[:, 1]), max(valid_data[:, 1]), max(test_data[:, 1])) + 1
 
-    if dataset != 'yelp2018' and dataset != 'movielens':
+    if dataset != 'yelp2018' and dataset != 'movielens' and dataset !='gowalla':
         n_items -= n_users
         # remap [n_users, n_users+n_items] to [0, n_items]
         train_data[:, 1] -= n_users
@@ -100,13 +112,15 @@ def load_data(model_args):
         read_cf = read_cf_yelp2018
     elif dataset == 'movielens':
         read_cf = read_cf_movielens
+    elif dataset == 'gowalla':
+        read_cf = read_cf_gowalla
     else:
         read_cf = read_cf_amazon
 
     print('reading train and test user-item set ...')
     train_cf = read_cf(directory + 'train.txt')
     test_cf = read_cf(directory + 'test.txt')
-    if args.dataset != 'yelp2018' and args.dataset != 'movielens':
+    if args.dataset!='gowalla' and args.dataset != 'yelp2018' and args.dataset != 'movielens':
         valid_cf = read_cf(directory + 'valid.txt')
     else:
         valid_cf = test_cf
@@ -121,7 +135,7 @@ def load_data(model_args):
     }
     user_dict = {
         'train_user_set': train_user_set,
-        'valid_user_set': valid_user_set if args.dataset != 'yelp2018' and args.dataset != 'movielens' else None,
+        'valid_user_set': valid_user_set if args.dataset != 'gowalla' and args.dataset != 'yelp2018' and args.dataset != 'movielens' else None,
         'test_user_set': test_user_set,
     }
 

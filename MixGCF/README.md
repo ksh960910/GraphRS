@@ -53,7 +53,7 @@ The instruction of commands has been clearly stated in the codes (see the parser
 ```
 python main.py --dataset ali --gnn lightgcn --dim 64 --lr 0.001 --batch_size 2048 --gpu_id 0 --context_hops 3 --agg mean --ns rns --K 1 --n_negs 1
 
-python main.py --dataset yelp2018 --gnn lightgcn --dim 64 --lr 0.001 --batch_size 2048 --gpu_id 0 --context_hops 3 --agg mean --ns rns --K 1 --n_negs 1
+python main.py --dataset yelp2018 --gnn lightgcn --dim 64 --lr 0.001 --batch_size 2048 --gpu_id 0 --context_hops 3 --pool mean --ns rns --K 1 --n_negs 1
 
 python main.py --dataset amazon --gnn lightgcn --dim 64 --lr 0.001 --batch_size 2048 --gpu_id 0 --context_hops 3 --agg mean --ns rns --K 1 --n_negs 1
 
