@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.sparse as sp
+from utils.node_copying import generate_graph
 
 from collections import defaultdict
 import warnings
@@ -12,12 +13,45 @@ train_user_set = defaultdict(list)
 test_user_set = defaultdict(list)
 valid_user_set = defaultdict(list)
 
+def generate_sampled_graph(directory):
+    try:
+        zeta = np.load(directory + 'zeta/zeta.npy')
+        sampled_graph = directory + 'sampled_graph/sampled_graph_epoch' + str(1) + '_epsilon' + str(0.01)
+        f = open(sampled_graph, 'r')
+        f.close()
+        # generate_graph(self.path).generate_graph(zeta=zeta, epsilon=0.01, iteration=iteration)
+        # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
+    
+    except Exception:
+        zeta = generate_graph(directory).node_copying()
+        generate_graph(directory).generate_graph(zeta=zeta, epsilon=0.01, iteration=1)
+        # sampled_graph = self.path + '/sampled_graph/sampled_graph_' + str(iteration+1)
+    
+    sampled_graph = directory + 'sampled_graph/sampled_graph_epoch' + str(1) + '_epsilon' + str(0.01)
+
+    return sampled_graph
 
 def read_cf_amazon(file_name):
     return np.loadtxt(file_name, dtype=np.int32)  # [u_id, i_id]
 
 def read_cf_movielens(file_name):
     return np.loadtxt(file_name, dtype=np.int32)
+
+def read_cf_gowalla_train(directory):
+    sampled_graph = generate_sampled_graph(directory)
+    print(sampled_graph)
+
+    inter_mat = list()
+    lines = open(sampled_graph, "r").readlines()
+    for l in lines:
+        tmps = l.strip()
+        inters = [int(i) for i in tmps.split(" ")]
+        u_id, pos_ids = inters[0], inters[1:]
+        pos_ids = list(set(pos_ids))
+        for i_id in pos_ids:
+            inter_mat.append([u_id, i_id])
+    return np.array(inter_mat)
+
 
 def read_cf_gowalla(file_name):
     inter_mat = list()
@@ -31,6 +65,21 @@ def read_cf_gowalla(file_name):
             inter_mat.append([u_id, i_id])
     return np.array(inter_mat)
 
+
+def read_cf_yelp2018_train(directory):
+    sampled_graph = generate_sampled_graph(directory)
+    print(sampled_graph)
+
+    inter_mat = list()
+    lines = open(sampled_graph, "r").readlines()
+    for l in lines:
+        tmps = l.strip()
+        inters = [int(i) for i in tmps.split(" ")]
+        u_id, pos_ids = inters[0], inters[1:]
+        pos_ids = list(set(pos_ids))
+        for i_id in pos_ids:
+            inter_mat.append([u_id, i_id])
+    return np.array(inter_mat)
 
 def read_cf_yelp2018(file_name):
     inter_mat = list()
@@ -106,20 +155,34 @@ def load_data(model_args):
     global args, dataset
     args = model_args
     dataset = args.dataset
+    sample_method = args.sample_method
     directory = args.data_path + dataset + '/'
 
-    if dataset == 'yelp2018':
-        read_cf = read_cf_yelp2018
-    elif dataset == 'movielens':
-        read_cf = read_cf_movielens
-    elif dataset == 'gowalla':
-        read_cf = read_cf_gowalla
+    if sample_method==1:
+        if dataset == 'yelp2018':
+            read_cf = read_cf_yelp2018_train
+            read_test_cf = read_cf_yelp2018
+        elif dataset == 'gowalla':
+            read_cf = read_cf_gowalla_train
+            read_test_cf = read_cf_gowalla
     else:
-        read_cf = read_cf_amazon
+        if dataset == 'yelp2018':
+            read_cf = read_cf_yelp2018
+        elif dataset == 'movielens':
+            read_cf = read_cf_movielens
+        elif dataset == 'gowalla':
+            read_cf = read_cf_gowalla
+        elif dataset == 'amazon':
+            read_cf = read_cf_amazon
 
     print('reading train and test user-item set ...')
-    train_cf = read_cf(directory + 'train.txt')
-    test_cf = read_cf(directory + 'test.txt')
+    if sample_method==1:
+        train_cf = read_cf(directory)
+        test_cf = read_test_cf(directory + 'test.txt')
+    else:
+        train_cf = read_cf(directory + 'train.txt')
+        test_cf = read_cf(directory + 'test.txt')
+        
     if args.dataset!='gowalla' and args.dataset != 'yelp2018' and args.dataset != 'movielens':
         valid_cf = read_cf(directory + 'valid.txt')
     else:
