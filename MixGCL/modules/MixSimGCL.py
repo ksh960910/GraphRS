@@ -126,7 +126,7 @@ class MixSimGCL(nn.Module):
         v = torch.from_numpy(coo.data).float()
         return torch.sparse.FloatTensor(i, v, coo.shape)
 
-    def forward(self, batch=None):
+    def forward(self, neg_candidate_users, neg_candidate_items, batch=None):
         user = batch['users']
         pos_item = batch['pos_items']
         neg_item = batch['neg_items']  # [batch_size, n_negs * K]
@@ -144,7 +144,7 @@ class MixSimGCL(nn.Module):
 
         rec_loss =self.create_bpr_loss(user_emb, pos_item_emb, neg_item_emb)
         batch_loss = rec_loss + self.l2_reg_loss(self.decay, user_emb, pos_item_emb)
-        cl_loss = self.cl_rate * self.cal_cl_loss([user, pos_item])
+        cl_loss = self.cl_rate * self.cal_cl_loss([user, pos_item], neg_candidate_users, neg_candidate_items)
 
         return batch_loss + cl_loss
 
@@ -176,26 +176,27 @@ class MixSimGCL(nn.Module):
             emb_loss += torch.norm(emb, p=2)
         return emb_loss * reg
 
-    def get_neg_candidate(self, neg_gcn_emb):
-        neg_candidate = []
-        for i in range(neg_gcn_emb.shape[0]):  # sample n times
-            negitems = []
-            for j in range(self.n_negs):
-                while True:
-                    negitem = random.choice(range(neg_gcn_emb.shape[0]))
-                    if negitem != i:
-                        break
-                negitems.append(negitem)
-            neg_candidate.append(negitems)
-        return neg_candidate
+    # def get_neg_candidate(self, neg_gcn_emb):
+    #     neg_candidate = []
+    #     for i in range(neg_gcn_emb.shape[0]):  # sample n times
+    #         negitems = []
+    #         for j in range(self.n_negs):
+    #             while True:
+    #                 negitem = random.choice(range(neg_gcn_emb.shape[0]))
+    #                 if negitem != i:
+    #                     break
+    #             negitems.append(negitem)
+    #         neg_candidate.append(negitems)
+    #     return neg_candidate
 
     '''negative sampling의 output으로는 batch가 적용된 embedding말고
        전체 [29858,64], [40981,64] 사이즈의 embedding이 나와야함'''
-    def mixup(self, pos_gcn_emb, neg_gcn_emb):
+    def users_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_users):
         '''pos_gcn_emb는 perturbed되지 않은 user / item 3-hop aggregation embedding
            neg_gcn_emb는 self.generate()에서 나온 user / item view1'''
         
-        neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
+        # neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
+        neg_candidate = neg_candidate_users
         neg_emb = neg_gcn_emb[neg_candidate] # [n_users, n_negs, emb_size]
         
         '''neg_emb size와 같은 0~1까지의 random number가 담긴 tensor 생성'''
@@ -209,19 +210,42 @@ class MixSimGCL(nn.Module):
 
         return neg_emb
 
-    def cal_cl_loss(self, idx):
+    def items_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_items):
+        '''pos_gcn_emb는 perturbed되지 않은 user / item 3-hop aggregation embedding
+           neg_gcn_emb는 self.generate()에서 나온 user / item view1'''
+        
+        # neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
+        neg_candidate = neg_candidate_items
+        neg_emb = neg_gcn_emb[neg_candidate] # [n_users, n_negs, emb_size]
+        
+        '''neg_emb size와 같은 0~1까지의 random number가 담긴 tensor 생성'''
+        alpha = torch.rand_like(neg_emb).cuda()
+        # print('pos unsqu : ', pos_gcn_emb.unsqueeze(dim=1).shape)
+        neg_emb = alpha*pos_gcn_emb.unsqueeze(dim=1) + (1-alpha)*neg_emb  # [n_users, n_negs, emb_size]
+        
+        scores = (pos_gcn_emb.unsqueeze(dim=1) * neg_emb).sum(dim=-1)
+        indices = torch.max(scores, dim=1)[1].detach()
+        neg_emb = neg_emb[[i for i in range(neg_emb.shape[0])],indices,:]
+
+        return neg_emb
+
+    def cal_cl_loss(self, idx, neg_candidate_users, neg_candidate_items):
         u_idx = torch.unique(torch.Tensor(idx[0]).type(torch.long)).to(self.device)
         i_idx = torch.unique(torch.Tensor(idx[1]).type(torch.long)).to(self.device)
-        user_view1, item_view1 = self.generate(perturb=True)
+        
         user_view0, item_view0 = self.generate(perturb=False)
+        user_view1, item_view1 = self.generate(perturb=True)
+        user_view2, item_view2 = self.generate(perturb=True)
+
         '''positive mixing으로 새로운 user_view2/item_view2 생성'''
-        # tt = time()
-        user_view2, item_view2 = self.mixup(user_view0, user_view1), self.mixup(item_view0, item_view1)
-        # print('mixing : ', time() - tt)
-        user_view2, item_view2 = user_view2.squeeze(dim=1), item_view2.squeeze(dim=1)
+        neg_user_view = self.users_mixup(user_view0, user_view1, neg_candidate_users)
+        neg_item_view = self.items_mixup(item_view0, item_view1, neg_candidate_items)
+        # user_view2, item_view2 = self.mixup(user_view0, user_view1), self.mixup(item_view0, item_view1)
+        neg_user_view, neg_item_view = neg_user_view.squeeze(dim=1), neg_item_view.squeeze(dim=1)
+
         # user_view2, item_view2 = self.generate()
-        user_cl_loss = self.InfoNCE(user_view1[u_idx], user_view2[u_idx], self.temp)
-        item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], self.temp)
+        user_cl_loss = self.InfoNCE(user_view1[u_idx], user_view2[u_idx], neg_user_view[u_idx], self.temp)
+        item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], neg_item_view[i_idx], self.temp)
         return user_cl_loss + item_cl_loss
 
     # def cal_cl_loss(self, idx):
@@ -233,16 +257,27 @@ class MixSimGCL(nn.Module):
     #     item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], self.temp)
     #     return user_cl_loss + item_cl_loss
 
-    def InfoNCE(self, view1, view2, temperature, b_cos=True):
+    def InfoNCE(self, view1, view2, neg_view, temperature, b_cos=True):
         if b_cos:
-            view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
+            view1, view2, neg_view = F.normalize(view1, dim=1), F.normalize(view2, dim=1), F.normalize(neg_view, dim=1)
         '''서로 다른 view의 자기자신 노드끼리 내적값을 구할 수 있도록 element-wise multiplication'''
         pos_score = (view1 * view2).sum(dim=-1)
         pos_score = torch.exp(pos_score / temperature)
         '''서로 다른 view의 자신과 다른 노드끼리 내적값을 구할 수 있도록 matmul'''
-        ttl_score = torch.matmul(view1, view2.transpose(0, 1))
+        ttl_score = torch.matmul(view1, neg_view.transpose(0, 1))
         ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
         cl_loss = -torch.log(pos_score / ttl_score+10e-6)
         return torch.mean(cl_loss)
+    # def InfoNCE(self, view1, view2, temperature, b_cos=True):
+    #     if b_cos:
+    #         view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
+    #     '''서로 다른 view의 자기자신 노드끼리 내적값을 구할 수 있도록 element-wise multiplication'''
+    #     pos_score = (view1 * view2).sum(dim=-1)
+    #     pos_score = torch.exp(pos_score / temperature)
+    #     '''서로 다른 view의 자신과 다른 노드끼리 내적값을 구할 수 있도록 matmul'''
+    #     ttl_score = torch.matmul(view1, view2.transpose(0, 1))
+    #     ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
+    #     cl_loss = -torch.log(pos_score / ttl_score+10e-6)
+    #     return torch.mean(cl_loss)
 
 

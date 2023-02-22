@@ -19,7 +19,7 @@ n_users = 0
 n_items = 0
 
 
-def get_feed_dict(train_entity_pairs, train_pos_set, start, end, n_negs=1):
+def get_feed_dict(train_entity_pairs, train_pos_set, start, end, n=1):
     '''MixGCF'''
     # def sampling(user_item, train_set, n):
     #     neg_items = []
@@ -72,7 +72,37 @@ def get_feed_dict(train_entity_pairs, train_pos_set, start, end, n_negs=1):
     #                                                    n_negs*K)).to(device)
     feed_dict['neg_items'] = torch.LongTensor(sampling(entity_pairs,
                                                        train_pos_set)).to(device)
+
     return feed_dict
+
+'''MGCL negative candidate selection'''
+def user_negative_sampling(n):
+    neg_candidate = []
+    for i in range(n_users):
+        negitems = []
+        for j in range(n):
+            while True:
+                negitem = random.choice(range(n_users))
+                if negitem != i:
+                    break
+            negitems.append(negitem)
+        neg_candidate.append(negitems)
+        
+    return neg_candidate
+
+def item_negative_sampling(n):
+    neg_candidate = []
+    for i in range(n_items):
+        negitems = []
+        for j in range(n):
+            while True:
+                negitem = random.choice(range(n_items))
+                if negitem != i:
+                    break
+            negitems.append(negitem)
+        neg_candidate.append(negitems)
+
+    return neg_candidate
 
 
 if __name__ == '__main__':
@@ -126,6 +156,7 @@ if __name__ == '__main__':
     should_stop = False
 
     print("start training ...")
+
     for epoch in range(args.epoch):
         # shuffle training data
         train_cf_ = train_cf
@@ -151,8 +182,11 @@ if __name__ == '__main__':
                                   user_dict['train_user_set'],
                                   s, s + args.batch_size,
                                   n_negs)
-                                  
-            batch_loss = model(batch)
+            '''mixup시에 필요한 negative candidate selection'''
+            neg_candidate_users = user_negative_sampling(n_negs)
+            neg_candidate_items = item_negative_sampling(n_negs)
+
+            batch_loss = model(neg_candidate_users, neg_candidate_items, batch)
 
             optimizer.zero_grad()
             batch_loss.backward()
