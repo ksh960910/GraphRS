@@ -7,7 +7,9 @@ import torch
 import torch.nn as nn
 from time import time
 import torch.nn.functional as F
+import random
 
+# nohup python main.py --dataset gowalla --gnn sgcl --dim 64 --lr 0.001 --batch_size 2048 --gpu_id 0 --context_hops 3 --pool mean --ns mixgcf --n_negs 1 --K 1 --tau 0.2 --lamb 0.5 --eps 0.1 &
 
 class GraphConv(nn.Module):
     """
@@ -51,20 +53,7 @@ class GraphConv(nn.Module):
         # item_embed: [n_items, channel]
 
         # all_embed: [n_users+n_items, channel]
-        '''SimGCL'''
-        # ego_embeddings = torch.cat([user_embed, item_embed], dim=0)
-        # all_embeddings = []
-        # for k in range(self.n_hops):
-        #     ego_embeddings = torch.sparse.mm(self.interact_mat, ego_embeddings)
-        #     if perturbed:
-        #         random_noise = torch.rand_like(ego_embeddings).cuda()
-        #         ego_embeddings += torch.sign(ego_embeddings) * F.normalize(random_noise, dim=-1) * self.eps
-        #     all_embeddings.append(ego_embeddings)
-        # all_embeddings = torch.stack(all_embeddings, dim=1)
-        # all_embeddings = torch.mean(all_embeddings, dim=1)
-        # user_all_embeddings, item_all_embeddings = torch.split(all_embeddings, [self.n_users, self.n_items])
-        # return user_all_embeddings, item_all_embeddings
-
+        '''XSimGCL'''
         ego_embeddings = torch.cat([user_embed, item_embed], dim=0)
         all_embeddings = []
         all_embeddings_cl = ego_embeddings
@@ -85,9 +74,9 @@ class GraphConv(nn.Module):
         return user_all_embeddings, item_all_embeddings
 
 
-class XSimGCL(nn.Module):
+class XmixSimGCL(nn.Module):
     def __init__(self, data_config, args_config, adj_mat):
-        super(XSimGCL, self).__init__()
+        super(XmixSimGCL, self).__init__()
 
         self.n_users = data_config['n_users']
         self.n_items = data_config['n_items']
@@ -143,83 +132,35 @@ class XSimGCL(nn.Module):
         v = torch.from_numpy(coo.data).float()
         return torch.sparse.FloatTensor(i, v, coo.shape)
 
-    def forward(self, batch=None):
+    def forward(self, neg_candidate_users, neg_candidate_items, batch=None):
         user = batch['users']
         pos_item = batch['pos_items']
         neg_item = batch['neg_items']  # [batch_size, n_negs * K]
 
         # user_gcn_emb: [n_users, channel]
         # item_gcn_emb: [n_users, channel]
-        # user_gcn_emb, item_gcn_emb = self.gcn(self.user_embed,
-        #                                       self.item_embed,
-        #                                       edge_dropout=self.edge_dropout,
-        #                                       mess_dropout=self.mess_dropout)
-        # user_gcn_emb, item_gcn_emb, rec_user_emb, rec_item_emb, cl_user_emb, cl_item_emb
+        '''perturb 되지 않은 3-hop 정보들이 aggregation된 최종 embedding'''
         rec_user_emb, rec_item_emb, cl_user_emb, cl_item_emb = self.gcn(self.user_embed,
                                                                         self.item_embed,
                                                                         perturbed = True,
                                                                         edge_dropout=self.edge_dropout,
                                                                         mess_dropout=self.mess_dropout)
-        # if self.ns == 'rns':  # n_negs = 1
-        #     neg_gcn_embs = item_gcn_emb[neg_item[:, :self.K]]
-        # else:
-        #     neg_gcn_embs = []
-        #     for k in range(self.K):
-        #         neg_gcn_embs.append(self.negative_sampling(user_gcn_emb, item_gcn_emb,
-        #                                                    user, neg_item[:, k*self.n_negs: (k+1)*self.n_negs],
-        #                                                    pos_item))
-        #     neg_gcn_embs = torch.stack(neg_gcn_embs, dim=1)
-        # neg_gcn_embs = item_gcn_emb[neg_item]
-
-        # rec_loss,_,_ = self.create_bpr_loss(user_gcn_emb[user], item_gcn_emb[pos_item], neg_gcn_embs)
+        '''batch에 해당하는 user/pos/neg embedding 뽑음'''
         user_emb, pos_item_emb, neg_item_emb = rec_user_emb[user], rec_item_emb[pos_item], rec_item_emb[neg_item]
 
-        # rec_loss = self.create_bpr_loss(rec_user_emb[user], rec_item_emb[pos_item], rec_item_emb[neg_item])
         rec_loss =self.create_bpr_loss(user_emb, pos_item_emb, neg_item_emb)
         batch_loss = rec_loss + self.l2_reg_loss(self.decay, user_emb, pos_item_emb)
-        cl_loss = self.cl_rate * self.cal_cl_loss([user, pos_item],rec_user_emb,cl_user_emb,rec_item_emb,cl_item_emb)
-        # cl_loss = self.cl_rate * self.cal_cl_loss([user, pos_item])
+        cl_loss = self.cl_rate * self.cal_cl_loss([user, pos_item], rec_user_emb,cl_user_emb,rec_item_emb,cl_item_emb, neg_candidate_users, neg_candidate_items)
 
         return batch_loss + cl_loss
 
-    # def negative_sampling(self, user_gcn_emb, item_gcn_emb, user, neg_candidates, pos_item):
-    #     batch_size = user.shape[0]
-    #     s_e, p_e = user_gcn_emb[user], item_gcn_emb[pos_item]  # [batch_size, n_hops+1, channel]
-    #     if self.pool != 'concat':
-    #         s_e = self.pooling(s_e).unsqueeze(dim=1)
-
-    #     """positive mixing"""
-    #     seed = torch.rand(batch_size, 1, p_e.shape[1], 1).to(p_e.device)  # (0, 1)
-    #     n_e = item_gcn_emb[neg_candidates]  # [batch_size, n_negs, n_hops, channel]
-    #     n_e_ = seed * p_e.unsqueeze(dim=1) + (1 - seed) * n_e  # mixing
-
-    #     """hop mixing"""
-    #     scores = (s_e.unsqueeze(dim=1) * n_e_).sum(dim=-1)  # [batch_size, n_negs, n_hops+1]
-    #     indices = torch.max(scores, dim=1)[1].detach()
-    #     neg_items_emb_ = n_e_.permute([0, 2, 1, 3])  # [batch_size, n_hops+1, n_negs, channel]
-    #     # [batch_size, n_hops+1, channel]
-    #     return neg_items_emb_[[[i] for i in range(batch_size)],
-    #                           range(neg_items_emb_.shape[1]), indices, :]
-
-    # def pooling(self, embeddings):
-    #     # [-1, n_hops, channel]
-    #     if self.pool == 'mean':
-    #         return embeddings.mean(dim=1)
-    #     elif self.pool == 'sum':
-    #         return embeddings.sum(dim=1)
-    #     elif self.pool == 'concat':
-    #         return embeddings.view(embeddings.shape[0], -1)
-    #     else:  # final
-    #         return embeddings[:, -1, :]
-
-    def generate(self, split=True):
+    def generate(self, perturb, split=True):
         user_gcn_emb, item_gcn_emb = self.gcn(self.user_embed,
                                               self.item_embed,
-                                              perturbed=False,
+                                              perturbed=perturb,
                                               edge_dropout=False,
                                               mess_dropout=False)
-        
-        # user_gcn_emb, item_gcn_emb = self.pooling(user_gcn_emb), self.pooling(item_gcn_emb)
+
         if split:
             return user_gcn_emb, item_gcn_emb
         else:
@@ -241,35 +182,89 @@ class XSimGCL(nn.Module):
             emb_loss += torch.norm(emb, p=2)
         return emb_loss * reg
 
-    # def create_bpr_loss(self, user_gcn_emb, pos_gcn_embs, neg_gcn_embs):
-    #     # user_gcn_emb: [batch_size, n_hops+1, channel]
-    #     # pos_gcn_embs: [batch_size, n_hops+1, channel]
-    #     # neg_gcn_embs: [batch_size, K, n_hops+1, channel]
+    # def get_neg_candidate(self, neg_gcn_emb):
+    #     neg_candidate = []
+    #     for i in range(neg_gcn_emb.shape[0]):  # sample n times
+    #         negitems = []
+    #         for j in range(self.n_negs):
+    #             while True:
+    #                 negitem = random.choice(range(neg_gcn_emb.shape[0]))
+    #                 if negitem != i:
+    #                     break
+    #             negitems.append(negitem)
+    #         neg_candidate.append(negitems)
+    #     return neg_candidate
 
-    #     batch_size = user_gcn_emb.shape[0]
+    '''negative sampling의 output으로는 batch가 적용된 embedding말고
+       전체 [29858,64], [40981,64] 사이즈의 embedding이 나와야함'''
+    def users_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_users):
+        '''pos_gcn_emb는 perturbed되지 않은 user / item 3-hop aggregation embedding
+           neg_gcn_emb는 self.generate()에서 나온 user / item view1'''
+        
+        # neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
+        neg_candidate = neg_candidate_users
+        neg_emb = neg_gcn_emb[neg_candidate] # [n_users, n_negs, emb_size]
 
-    #     u_e = self.pooling(user_gcn_emb)
-    #     pos_e = self.pooling(pos_gcn_embs)
-    #     neg_e = self.pooling(neg_gcn_embs.view(-1, neg_gcn_embs.shape[2], neg_gcn_embs.shape[3])).view(batch_size, self.K, -1)
+        '''neg_emb size와 같은 0~1까지의 random number가 담긴 tensor 생성'''
+        alpha = torch.rand_like(neg_emb).cuda()
+        # print('pos unsqu : ', pos_gcn_emb.unsqueeze(dim=1).shape)
+        neg_emb = alpha*pos_gcn_emb.unsqueeze(dim=1) + (1-alpha)*neg_emb  # [n_users, n_negs, emb_size]
+        
+        scores = (pos_gcn_emb.unsqueeze(dim=1) * neg_emb).sum(dim=-1)
+        indices = torch.max(scores, dim=1)[1].detach()
+        neg_emb = neg_emb[[i for i in range(neg_emb.shape[0])],indices,:]
 
-    #     pos_scores = torch.sum(torch.mul(u_e, pos_e), axis=1)
-    #     neg_scores = torch.sum(torch.mul(u_e.unsqueeze(dim=1), neg_e), axis=-1)  # [batch_size, K]
+        return neg_emb
 
-    #     mf_loss = torch.mean(torch.log(1+torch.exp(neg_scores - pos_scores.unsqueeze(dim=1)).sum(dim=1)))
+    def items_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_items):
+        '''pos_gcn_emb는 perturbed되지 않은 user / item 3-hop aggregation embedding
+           neg_gcn_emb는 self.generate()에서 나온 user / item view1'''
+        
+        # neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
+        neg_candidate = neg_candidate_items
+        neg_emb = neg_gcn_emb[neg_candidate] # [n_users, n_negs, emb_size]
+        
+        '''neg_emb size와 같은 0~1까지의 random number가 담긴 tensor 생성'''
+        alpha = torch.rand_like(neg_emb).cuda()
+        # print('pos unsqu : ', pos_gcn_emb.unsqueeze(dim=1).shape)
+        neg_emb = alpha*pos_gcn_emb.unsqueeze(dim=1) + (1-alpha)*neg_emb  # [n_users, n_negs, emb_size]
+        
+        scores = (pos_gcn_emb.unsqueeze(dim=1) * neg_emb).sum(dim=-1)
+        indices = torch.max(scores, dim=1)[1].detach()
+        neg_emb = neg_emb[[i for i in range(neg_emb.shape[0])],indices,:]
 
-    #     # cul regularizer
-    #     regularize = (torch.norm(user_gcn_emb[:, 0, :]) ** 2
-    #                    + torch.norm(pos_gcn_embs[:, 0, :]) ** 2
-    #                    + torch.norm(neg_gcn_embs[:, :, 0, :]) ** 2) / 2  # take hop=0
-    #     emb_loss = self.decay * regularize / batch_size
+        return neg_emb
 
-    #     return mf_loss + emb_loss, mf_loss, emb_loss
-    
-    def cal_cl_loss(self, idx, user_view1, user_view2, item_view1, item_view2):
+    def cal_cl_loss(self, idx, user_view1, user_view2, item_view1, item_view2, neg_candidate_users, neg_candidate_items):
+        # u_idx = torch.unique(torch.Tensor(idx[0]).type(torch.long)).to(self.device)
+        # i_idx = torch.unique(torch.Tensor(idx[1]).type(torch.long)).to(self.device)
         u_idx = torch.unique(torch.LongTensor(idx[0].cpu()).type(torch.long)).to(self.device)
         i_idx = torch.unique(torch.LongTensor(idx[1].cpu()).type(torch.long)).to(self.device)
-        user_cl_loss = self.InfoNCE(user_view1[u_idx], user_view2[u_idx], self.temp)
-        item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], self.temp)
+        
+        '''perturb 되지 않은 embedding'''
+        user_view0, item_view0 = self.generate(perturb=False)
+        # '''perturb 된 embedding'''
+        # user_view1, item_view1 = self.generate(perturb=True)
+
+        '''perturb 되지 않은 positive embedding과 perturb된 negative embedding mixup하기
+           view1은 perturbed 3-hop aggregation된 애
+           view2는 perturbed l*번째 layer까지 aggregation된 애'''
+        neg_user_view = self.users_mixup(user_view0, user_view1, neg_candidate_users)
+        neg_item_view = self.items_mixup(item_view0, item_view1, neg_candidate_items)
+        # user_view2, item_view2 = self.mixup(user_view0, user_view1), self.mixup(item_view0, item_view1)
+        neg_user_view, neg_item_view = neg_user_view.squeeze(dim=1), neg_item_view.squeeze(dim=1)
+
+        '''perturb 된 positive embedding과 perturb된 negative embedding mixup하기
+           view1은 perturbed 3-hop aggregation된 애
+           view2는 perturbed l*번째 layer까지 aggregation된 애'''
+        # neg_user_view = self.users_mixup(user_view1, user_view1, neg_candidate_users)
+        # neg_item_view = self.items_mixup(item_view1, item_view1, neg_candidate_items)
+        # # user_view2, item_view2 = self.mixup(user_view0, user_view1), self.mixup(item_view0, item_view1)
+        # neg_user_view, neg_item_view = neg_user_view.squeeze(dim=1), neg_item_view.squeeze(dim=1)
+
+        # user_view2, item_view2 = self.generate()
+        user_cl_loss = self.InfoNCE(user_view1[u_idx], user_view2[u_idx], neg_user_view[u_idx], self.temp)
+        item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], neg_item_view[i_idx], self.temp)
         return user_cl_loss + item_cl_loss
 
     # def cal_cl_loss(self, idx):
@@ -281,13 +276,27 @@ class XSimGCL(nn.Module):
     #     item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], self.temp)
     #     return user_cl_loss + item_cl_loss
 
-    def InfoNCE(self, view1, view2, temperature, b_cos=True):
+    def InfoNCE(self, view1, view2, neg_view, temperature, b_cos=True):
         if b_cos:
-            view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
+            view1, view2, neg_view = F.normalize(view1, dim=1), F.normalize(view2, dim=1), F.normalize(neg_view, dim=1)
+        '''서로 다른 view의 자기자신 노드끼리 내적값을 구할 수 있도록 element-wise multiplication'''
         pos_score = (view1 * view2).sum(dim=-1)
         pos_score = torch.exp(pos_score / temperature)
-        ttl_score = torch.matmul(view1, view2.transpose(0, 1))
+        '''서로 다른 view의 자신과 다른 노드끼리 내적값을 구할 수 있도록 matmul'''
+        ttl_score = torch.matmul(view1, neg_view.transpose(0, 1))
         ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
         cl_loss = -torch.log(pos_score / ttl_score+10e-6)
         return torch.mean(cl_loss)
+    # def InfoNCE(self, view1, view2, temperature, b_cos=True):
+    #     if b_cos:
+    #         view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
+    #     '''서로 다른 view의 자기자신 노드끼리 내적값을 구할 수 있도록 element-wise multiplication'''
+    #     pos_score = (view1 * view2).sum(dim=-1)
+    #     pos_score = torch.exp(pos_score / temperature)
+    #     '''서로 다른 view의 자신과 다른 노드끼리 내적값을 구할 수 있도록 matmul'''
+    #     ttl_score = torch.matmul(view1, view2.transpose(0, 1))
+    #     ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
+    #     cl_loss = -torch.log(pos_score / ttl_score+10e-6)
+    #     return torch.mean(cl_loss)
+
 

@@ -115,6 +115,9 @@ if __name__ == '__main__':
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+    '''empty cache'''
+    torch.cuda.empty_cache()
+
     """read args"""
     global args, device
     args = parse_args()
@@ -132,6 +135,7 @@ if __name__ == '__main__':
     K = args.K
 
     """define model"""
+    from modules.XmixSimGCL import XmixSimGCL
     from modules.MixSimGCL import MixSimGCL
     from modules.XSimGCL import XSimGCL
     from modules.SimGCL import SimGCL
@@ -145,6 +149,8 @@ if __name__ == '__main__':
         model = XSimGCL(n_params, args, norm_mat).to(device)
     elif args.gnn == 'mgcl':
         model = MixSimGCL(n_params, args, norm_mat).to(device)
+    elif args.gnn == 'xmgcl':
+        model = XmixSimGCL(n_params, args, norm_mat).to(device)
     else:
         model = NGCF(n_params, args, norm_mat).to(device)
 
@@ -169,6 +175,9 @@ if __name__ == '__main__':
         # index_obs = np.arange(len(train_cf_obs))
         # np.random.shuffle(index_obs)
         # train_cf_obs = train_cf_obs[index_obs].to(device)
+        '''mixup시에 필요한 negative candidate selection'''
+        neg_candidate_users = user_negative_sampling(n_negs)
+        neg_candidate_items = item_negative_sampling(n_negs)
 
         """training"""
         model.train()
@@ -182,9 +191,7 @@ if __name__ == '__main__':
                                   user_dict['train_user_set'],
                                   s, s + args.batch_size,
                                   n_negs)
-            '''mixup시에 필요한 negative candidate selection'''
-            neg_candidate_users = user_negative_sampling(n_negs)
-            neg_candidate_items = item_negative_sampling(n_negs)
+
 
             batch_loss = model(neg_candidate_users, neg_candidate_items, batch)
 

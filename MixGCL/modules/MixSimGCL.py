@@ -198,7 +198,7 @@ class MixSimGCL(nn.Module):
         # neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
         neg_candidate = neg_candidate_users
         neg_emb = neg_gcn_emb[neg_candidate] # [n_users, n_negs, emb_size]
-        
+
         '''neg_emb size와 같은 0~1까지의 random number가 담긴 tensor 생성'''
         alpha = torch.rand_like(neg_emb).cuda()
         # print('pos unsqu : ', pos_gcn_emb.unsqueeze(dim=1).shape)
@@ -230,8 +230,10 @@ class MixSimGCL(nn.Module):
         return neg_emb
 
     def cal_cl_loss(self, idx, neg_candidate_users, neg_candidate_items):
-        u_idx = torch.unique(torch.Tensor(idx[0]).type(torch.long)).to(self.device)
-        i_idx = torch.unique(torch.Tensor(idx[1]).type(torch.long)).to(self.device)
+        # u_idx = torch.unique(torch.Tensor(idx[0]).type(torch.long)).to(self.device)
+        # i_idx = torch.unique(torch.Tensor(idx[1]).type(torch.long)).to(self.device)
+        u_idx = torch.unique(torch.LongTensor(idx[0].cpu()).type(torch.long)).to(self.device)
+        i_idx = torch.unique(torch.LongTensor(idx[1].cpu()).type(torch.long)).to(self.device)
         
         user_view0, item_view0 = self.generate(perturb=False)
         user_view1, item_view1 = self.generate(perturb=True)
