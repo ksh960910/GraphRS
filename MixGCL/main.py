@@ -19,7 +19,7 @@ n_users = 0
 n_items = 0
 
 
-def get_feed_dict(train_entity_pairs, train_pos_set, start, end, n=1):
+def get_feed_dict(train_entity_pairs, train_pos_set, start, end, n):
     '''MixGCF'''
     # def sampling(user_item, train_set, n):
     #     neg_items = []
@@ -63,6 +63,51 @@ def get_feed_dict(train_entity_pairs, train_pos_set, start, end, n=1):
                 neg_items.append(negitem)
         return neg_items
     
+    # def sampling(user_item, train_set, n=1):
+    #     neg_items = []
+    #     neg_users = []
+    #     for user, item in user_item.cpu().numpy():
+    #         user = int(user)
+    #         for i in range(n):  # sample n times
+    #             while negitem in train_set[user]:
+    #                 negitem = random.choice(range(n_items))
+    #             while True:
+    #                 neguser = random.choice(range(n_users))
+    #                 if neguser != user:
+    #                     break
+    #             neg_users.append(neguser)
+    #             neg_items.append(negitem)
+    #     return neg_items, neg_users
+
+    # '''MGCL negative candidate selection'''
+    # def user_negative_sampling(user_item, n_negs):
+    #     neg_candidate = []
+    #     for i, _ in user_item.cpu().numpy():
+    #         negitems = []
+    #         for j in range(n_negs):
+    #             while True:
+    #                 negitem = random.choice(range(n_users))
+    #                 if negitem != i:
+    #                     break
+    #             negitems.append(negitem)
+    #         neg_candidate.append(negitems)
+            
+    #     return neg_candidate
+
+    # def item_negative_sampling(user_item, n_negs):
+    #     neg_candidate = []
+    #     for _, i in user_item.cpu().numpy():
+    #         negitems = []
+    #         for j in range(n_negs):
+    #             while True:
+    #                 negitem = random.choice(range(n_items))
+    #                 if negitem != i:
+    #                     break
+    #             negitems.append(negitem)
+    #         neg_candidate.append(negitems)
+
+    #     return neg_candidate
+    
     feed_dict = {}
     entity_pairs = train_entity_pairs[start:end]
     feed_dict['users'] = entity_pairs[:, 0]
@@ -72,8 +117,10 @@ def get_feed_dict(train_entity_pairs, train_pos_set, start, end, n=1):
     #                                                    n_negs*K)).to(device)
     feed_dict['neg_items'] = torch.LongTensor(sampling(entity_pairs,
                                                        train_pos_set)).to(device)
-
+    # neg_candidate_users = user_negative_sampling(entity_pairs, n_negs)
+    # neg_candidate_items = item_negative_sampling(entity_pairs, n_negs)
     return feed_dict
+    # return feed_dict, neg_candidate_users, neg_candidate_items
 
 '''MGCL negative candidate selection'''
 def user_negative_sampling(n):
@@ -142,14 +189,18 @@ if __name__ == '__main__':
     from modules.LightGCN import LightGCN
     from modules.NGCF import NGCF
     if args.gnn == 'lightgcn':
+        print('MixGCF-LightGCN model setup')
         model = LightGCN(n_params, args, norm_mat).to(device)
     elif args.gnn == 'sgcl':
+        print('Simple GCL model setup')
         model = SimGCL(n_params, args, norm_mat).to(device)
     elif args.gnn == 'xgcl':
+        print('XSimple GCL model setup')
         model = XSimGCL(n_params, args, norm_mat).to(device)
     elif args.gnn == 'mgcl':
         model = MixSimGCL(n_params, args, norm_mat).to(device)
     elif args.gnn == 'xmgcl':
+        print('X Mix Simple GCL model setup')
         model = XmixSimGCL(n_params, args, norm_mat).to(device)
     else:
         model = NGCF(n_params, args, norm_mat).to(device)
@@ -192,7 +243,15 @@ if __name__ == '__main__':
                                   s, s + args.batch_size,
                                   n_negs)
 
+            # batch, neg_candidate_users, neg_candidate_items = get_feed_dict(train_cf_,
+            #                                                   user_dict['train_user_set'],
+            #                                                   s, s + args.batch_size, 1,
+            #                                                   n_negs)
+            
+            '''other model setup'''
+            # batch_loss = model(batch)
 
+            '''xsimgcl model setup'''
             batch_loss = model(neg_candidate_users, neg_candidate_items, batch)
 
             optimizer.zero_grad()

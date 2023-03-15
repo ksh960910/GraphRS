@@ -144,8 +144,11 @@ def test(model, user_dict, n_params, deg_item, mode='test'):
     n_user_batchs = n_test_users // u_batch_size + 1
 
     count = 0
+    #other setup
+    # user_gcn_emb, item_gcn_emb = model.generate()
 
-    user_gcn_emb, item_gcn_emb = model.generate(perturb=False)
+    #xmgcl setup
+    user_gcn_emb, item_gcn_emb, _, _ = model.generate(perturb=False)
 
     for u_batch_id in range(n_user_batchs):
         start = u_batch_id * u_batch_size

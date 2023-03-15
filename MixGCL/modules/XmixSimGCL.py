@@ -69,9 +69,12 @@ class GraphConv(nn.Module):
         final_embeddings = torch.mean(final_embeddings, dim=1)
         user_all_embeddings, item_all_embeddings = torch.split(final_embeddings, [self.n_users, self.n_items])
         user_all_embeddings_cl, item_all_embeddings_cl = torch.split(all_embeddings_cl, [self.n_users, self.n_items])
-        if perturbed:
-            return user_all_embeddings, item_all_embeddings,user_all_embeddings_cl, item_all_embeddings_cl
-        return user_all_embeddings, item_all_embeddings
+
+        '''perturb==False일때도 cll-1번째 layer의 embedding이 필요함'''
+        return user_all_embeddings, item_all_embeddings,user_all_embeddings_cl, item_all_embeddings_cl
+        # if perturbed:
+        #     return user_all_embeddings, item_all_embeddings,user_all_embeddings_cl, item_all_embeddings_cl
+        # return user_all_embeddings, item_all_embeddings
 
 
 class XmixSimGCL(nn.Module):
@@ -155,14 +158,14 @@ class XmixSimGCL(nn.Module):
         return batch_loss + cl_loss
 
     def generate(self, perturb, split=True):
-        user_gcn_emb, item_gcn_emb = self.gcn(self.user_embed,
-                                              self.item_embed,
-                                              perturbed=perturb,
-                                              edge_dropout=False,
-                                              mess_dropout=False)
+        user_gcn_emb, item_gcn_emb, cl_user_gcn_emb, cl_item_gcn_emb = self.gcn(self.user_embed,
+                                                                                self.item_embed,
+                                                                                perturbed=perturb,
+                                                                                edge_dropout=False,
+                                                                                mess_dropout=False)
 
         if split:
-            return user_gcn_emb, item_gcn_emb
+            return user_gcn_emb, item_gcn_emb, cl_user_gcn_emb, cl_item_gcn_emb
         else:
             return torch.cat([user_gcn_emb, item_gcn_emb], dim=0)
 
@@ -182,28 +185,52 @@ class XmixSimGCL(nn.Module):
             emb_loss += torch.norm(emb, p=2)
         return emb_loss * reg
 
-    # def get_neg_candidate(self, neg_gcn_emb):
-    #     neg_candidate = []
-    #     for i in range(neg_gcn_emb.shape[0]):  # sample n times
-    #         negitems = []
-    #         for j in range(self.n_negs):
-    #             while True:
-    #                 negitem = random.choice(range(neg_gcn_emb.shape[0]))
-    #                 if negitem != i:
-    #                     break
-    #             negitems.append(negitem)
-    #         neg_candidate.append(negitems)
-    #     return neg_candidate
+    # def users_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_users):
+    #     '''pos_gcn_emb는 perturbed되지 않은 user / item 3-hop aggregation embedding
+    #        neg_gcn_emb는 self.generate()에서 나온 user / item view1'''
+        
+    #     # neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
+    #     neg_candidate = neg_candidate_users
+    #     neg_emb = neg_gcn_emb[neg_candidate] # [n_users, n_negs, emb_size]
+
+    #     '''neg_emb size와 같은 0~1까지의 random number가 담긴 tensor 생성'''
+    #     alpha = torch.rand_like(neg_emb).cuda()
+    #     # print('pos unsqu : ', pos_gcn_emb.unsqueeze(dim=1).shape)
+    #     neg_emb = alpha*pos_gcn_emb.unsqueeze(dim=1) + (1-alpha)*neg_emb  # [n_users, n_negs, emb_size]
+        
+    #     # scores = (pos_gcn_emb.unsqueeze(dim=1) * neg_emb).sum(dim=-1)
+    #     # indices = torch.max(scores, dim=1)[1].detach()
+    #     # neg_emb = neg_emb[[i for i in range(neg_emb.shape[0])],indices,:]
+
+    #     return neg_emb
+
+    # def items_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_items):
+    #     '''pos_gcn_emb는 perturbed되지 않은 user / item 3-hop aggregation embedding
+    #        neg_gcn_emb는 self.generate()에서 나온 user / item view1'''
+        
+    #     # neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
+    #     neg_candidate = neg_candidate_items
+    #     neg_emb = neg_gcn_emb[neg_candidate] # [n_users, n_negs, emb_size]
+        
+    #     '''neg_emb size와 같은 0~1까지의 random number가 담긴 tensor 생성'''
+    #     alpha = torch.rand_like(neg_emb).cuda()
+    #     # print('pos unsqu : ', pos_gcn_emb.unsqueeze(dim=1).shape)
+    #     neg_emb = alpha*pos_gcn_emb.unsqueeze(dim=1) + (1-alpha)*neg_emb  # [n_users, n_negs, emb_size]
+        
+    #     # scores = (pos_gcn_emb.unsqueeze(dim=1) * neg_emb).sum(dim=-1)
+    #     # indices = torch.max(scores, dim=1)[1].detach()
+    #     # neg_emb = neg_emb[[i for i in range(neg_emb.shape[0])],indices,:]
+
+    #     return neg_emb
 
     '''negative sampling의 output으로는 batch가 적용된 embedding말고
        전체 [29858,64], [40981,64] 사이즈의 embedding이 나와야함'''
-    def users_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_users):
+    def users_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_users, u_idx):
         '''pos_gcn_emb는 perturbed되지 않은 user / item 3-hop aggregation embedding
            neg_gcn_emb는 self.generate()에서 나온 user / item view1'''
         
         # neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
-        neg_candidate = neg_candidate_users
-        neg_emb = neg_gcn_emb[neg_candidate] # [n_users, n_negs, emb_size]
+        neg_emb = neg_gcn_emb[neg_candidate_users] # [n_users, n_negs, emb_size]
 
         '''neg_emb size와 같은 0~1까지의 random number가 담긴 tensor 생성'''
         alpha = torch.rand_like(neg_emb).cuda()
@@ -216,13 +243,12 @@ class XmixSimGCL(nn.Module):
 
         return neg_emb
 
-    def items_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_items):
+    def items_mixup(self, pos_gcn_emb, neg_gcn_emb, neg_candidate_items, i_idx):
         '''pos_gcn_emb는 perturbed되지 않은 user / item 3-hop aggregation embedding
            neg_gcn_emb는 self.generate()에서 나온 user / item view1'''
         
         # neg_candidate = self.get_neg_candidate(neg_gcn_emb) # [n_users, n_negs, emb_size]
-        neg_candidate = neg_candidate_items
-        neg_emb = neg_gcn_emb[neg_candidate] # [n_users, n_negs, emb_size]
+        neg_emb = neg_gcn_emb[neg_candidate_items] # [n_users, n_negs, emb_size]
         
         '''neg_emb size와 같은 0~1까지의 random number가 담긴 tensor 생성'''
         alpha = torch.rand_like(neg_emb).cuda()
@@ -236,45 +262,35 @@ class XmixSimGCL(nn.Module):
         return neg_emb
 
     def cal_cl_loss(self, idx, user_view1, user_view2, item_view1, item_view2, neg_candidate_users, neg_candidate_items):
+        '''view1은 perturb된 최종 embedding, view2는 perturb된 l*-layer embedding'''
         # u_idx = torch.unique(torch.Tensor(idx[0]).type(torch.long)).to(self.device)
         # i_idx = torch.unique(torch.Tensor(idx[1]).type(torch.long)).to(self.device)
         u_idx = torch.unique(torch.LongTensor(idx[0].cpu()).type(torch.long)).to(self.device)
         i_idx = torch.unique(torch.LongTensor(idx[1].cpu()).type(torch.long)).to(self.device)
         
-        '''perturb 되지 않은 embedding'''
-        user_view0, item_view0 = self.generate(perturb=False)
+        '''perturb 되지 않은 embedding
+           cl_view는 perturb되지 않은 l*-layer에서의 embedding'''
+        user_view0, item_view0, cl_user_view0, cl_item_view0 = self.generate(perturb=False)
         # '''perturb 된 embedding'''
         # user_view1, item_view1 = self.generate(perturb=True)
 
         '''perturb 되지 않은 positive embedding과 perturb된 negative embedding mixup하기
-           view1은 perturbed 3-hop aggregation된 애
-           view2는 perturbed l*번째 layer까지 aggregation된 애'''
-        neg_user_view = self.users_mixup(user_view0, user_view1, neg_candidate_users)
-        neg_item_view = self.items_mixup(item_view0, item_view1, neg_candidate_items)
+           cl_user_view0는 perturb되지 않은 l*-layer의 embedding
+           user_view2는 perturb된 l*-layer의 embedding'''
+        neg_user_view = self.users_mixup(cl_user_view0, user_view2, neg_candidate_users, u_idx)
+        neg_item_view = self.items_mixup(cl_item_view0, item_view2, neg_candidate_items, i_idx)
         # user_view2, item_view2 = self.mixup(user_view0, user_view1), self.mixup(item_view0, item_view1)
+
         neg_user_view, neg_item_view = neg_user_view.squeeze(dim=1), neg_item_view.squeeze(dim=1)
+
 
         '''perturb 된 positive embedding과 perturb된 negative embedding mixup하기
            view1은 perturbed 3-hop aggregation된 애
            view2는 perturbed l*번째 layer까지 aggregation된 애'''
-        # neg_user_view = self.users_mixup(user_view1, user_view1, neg_candidate_users)
-        # neg_item_view = self.items_mixup(item_view1, item_view1, neg_candidate_items)
-        # # user_view2, item_view2 = self.mixup(user_view0, user_view1), self.mixup(item_view0, item_view1)
-        # neg_user_view, neg_item_view = neg_user_view.squeeze(dim=1), neg_item_view.squeeze(dim=1)
 
-        # user_view2, item_view2 = self.generate()
         user_cl_loss = self.InfoNCE(user_view1[u_idx], user_view2[u_idx], neg_user_view[u_idx], self.temp)
         item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], neg_item_view[i_idx], self.temp)
         return user_cl_loss + item_cl_loss
-
-    # def cal_cl_loss(self, idx):
-    #     u_idx = torch.unique(torch.LongTensor(idx[0].cpu()).type(torch.long)).to(self.device)
-    #     i_idx = torch.unique(torch.LongTensor(idx[1].cpu()).type(torch.long)).to(self.device)
-    #     user_view1, item_view1 = self.generate()
-    #     user_view2, item_view2 = self.generate()
-    #     user_cl_loss = self.InfoNCE(user_view1[u_idx], user_view2[u_idx], self.temp)
-    #     item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], self.temp)
-    #     return user_cl_loss + item_cl_loss
 
     def InfoNCE(self, view1, view2, neg_view, temperature, b_cos=True):
         if b_cos:
@@ -282,11 +298,27 @@ class XmixSimGCL(nn.Module):
         '''서로 다른 view의 자기자신 노드끼리 내적값을 구할 수 있도록 element-wise multiplication'''
         pos_score = (view1 * view2).sum(dim=-1)
         pos_score = torch.exp(pos_score / temperature)
+
+        '''view1.unsqueeze(dim=2) -> [batch_size, emb_size, 1]
+           neg_view               -> [batch_size, emb_size, n_negs]'''
+
         '''서로 다른 view의 자신과 다른 노드끼리 내적값을 구할 수 있도록 matmul'''
+        '''cl loss 분모에 mixed 된거로 matmul한 걸 더하는 방법 (batch개만큼 더하는 꼴)'''
+        t_score = torch.matmul(view1, view2.transpose(0,1))
+        t_score = torch.exp(t_score / temperature).sum(dim=1)
         ttl_score = torch.matmul(view1, neg_view.transpose(0, 1))
         ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
-        cl_loss = -torch.log(pos_score / ttl_score+10e-6)
+        cl_loss = -torch.log(pos_score / (t_score+ttl_score+10e-6))
+
+        '''cl loss 분모에 mixed 된거로 element wise한 걸 더하는 방법 (1개만 더하는 꼴)'''
+        # ttl_score = torch.matmul(view1, view2.transpose(0,1))
+        # t_score = (view1 * neg_view)
+        # ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
+        # t_score = torch.exp(t_score / temperature).sum(dim=1)
+        # cl_loss = -torch.log(pos_score / (t_score+ttl_score+10e-6))
+        
         return torch.mean(cl_loss)
+
     # def InfoNCE(self, view1, view2, temperature, b_cos=True):
     #     if b_cos:
     #         view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
