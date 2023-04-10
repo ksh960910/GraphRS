@@ -24,16 +24,58 @@ y = torch.matmul(user1, item.t())
 z = torch.stack((x, y))
 print(z)
 k, _ = z.max(dim=0)
-l, indices = torch.sort(k, 1, descending=True)
-a, idx = l[:,:2], indices[:,:2]
-print(idx)
-print(x)
-b = x[:,idx][:,0,:]
-print(b)
-# m = torch.where(l>=300, True, False)
-# m = (l>=300).nonzero(as_tuple=True)
-# print(m)
-# print(l[m])
+print(k)
+t_mask = k.ge(250)
+sort_k, indices = torch.sort(k, 1, descending=True)
+print(sort_k, indices)
+topk_mask = indices[:,:2]
+print(topk_mask)
+j = torch.ones((3,3))
+topk_mask = topk_mask.unsqueeze(dim=-1)
+batch_ind = torch.arange(3).view([-1,1,1]).repeat([1,2,1])
+taken_ind = torch.cat([batch_ind, topk_mask], -1).view([-1,2])
+print(taken_ind)
+print('list zip : ', list(zip(taken_ind)))
+print(' * : ', list(zip(*taken_ind)))
+sparse_ind = torch.sparse_coo_tensor(list(zip(*taken_ind)), torch.ones((len(taken_ind))), (3,3))
+dense_ind = sparse_ind.to_dense()
+print(dense_ind)
+final_mask = dense_ind * t_mask
+print(final_mask)
+a = (final_mask==1).nonzero()
+print(a)
+print(a.sum(dim=-1))
+
+
+# print(batch_ind)
+
+
+# topk_inds_expanded = tf.expand_dims(topk_inds, -1)
+# batch_ind = tf.tile(
+#     tf.reshape(tf.range(batch_size), [-1, 1, 1]), [1, topk, 1])
+# taken_ind = tf.reshape(
+#     tf.concat([batch_ind, topk_inds_expanded], -1), [-1, 2])
+# taken_ind = tf.cast(taken_ind, tf.int64)
+# sparse_mask = tf.sparse.SparseTensor(
+#     taken_ind, tf.ones([tf.shape(taken_ind)[0]]),
+#     [batch_size, tf.shape(splitted_list_large_concat)[0]])
+# dense_mask_topk = tf.sparse.to_dense(sparse_mask, validate_indices=False)
+
+# l, indices = torch.sort(k, 1, descending=True)
+# a, idx = l[:,:2], indices[:,:2]
+# print(idx)
+# print(x)
+# b = x[:,idx][:,0,:]
+# print(b)
+# print(l)
+# m = torch.where(a>=135, True, False)
+# final = m * idx
+# print(final)
+# for i in range(a.shape[0]):
+#     print(a[i,final[i][i]])
+
+
+
 
 
 # python main.py --dataset gowalla --gnn m1 --dim 64 --lr 0.001 --batch_size 2048 --gpu_id 3 --context_hops 3 --pool mean --ns mixgcf --K 1

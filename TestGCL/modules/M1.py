@@ -141,26 +141,25 @@ class M1(nn.Module):
                                               perturbed = False,
                                               edge_dropout=self.edge_dropout,
                                               mess_dropout=self.mess_dropout)
-        
         user_emb, pos_item_emb, neg_item_emb = rec_user_emb[user], rec_item_emb[pos_item], rec_item_emb[neg_item]
         s_user_view1, s_item_view1, s_user_view2, s_item_view2, s_user_view3, s_item_view3, s_user_view4, s_item_view4 = self.create_support_set()
-        s1_user = self.get_user_sim_score(s_user_view1, rec_user_emb, user)
-        s2_user = self.get_user_sim_score(s_user_view2, rec_user_emb, user)
-        s3_user = self.get_user_sim_score(s_user_view3, rec_user_emb, user)
-        s4_user = self.get_user_sim_score(s_user_view4, rec_user_emb, user)
-        s1_item = self.get_item_sim_score(s_item_view1, rec_item_emb, pos_item)
-        s2_item = self.get_item_sim_score(s_item_view2, rec_item_emb, pos_item)
-        s3_item = self.get_item_sim_score(s_item_view3, rec_item_emb, pos_item)
-        s4_item = self.get_item_sim_score(s_item_view4, rec_item_emb, pos_item)
-        
-        user_scores, _ = torch.stack([s1_user, s2_user, s3_user, s4_user]).max(dim=0)
-        item_scores, _ = torch.stack([s1_item, s2_item, s3_item, s4_item]).max(dim=0)
-        user_fn_idx = self.fn_detection(user_scores, self.fnk)
-        item_fn_idx = self.fn_detection(item_scores, self.fnk)
+        # s1_user = self.get_user_sim_score(s_user_view1, rec_user_emb, user)
+        # s2_user = self.get_user_sim_score(s_user_view2, rec_user_emb, user)
+        # s3_user = self.get_user_sim_score(s_user_view3, rec_user_emb, user)
+        # s4_user = self.get_user_sim_score(s_user_view4, rec_user_emb, user)
+        # s1_item = self.get_item_sim_score(s_item_view1, rec_item_emb, pos_item)
+        # s2_item = self.get_item_sim_score(s_item_view2, rec_item_emb, pos_item)
+        # s3_item = self.get_item_sim_score(s_item_view3, rec_item_emb, pos_item)
+        # s4_item = self.get_item_sim_score(s_item_view4, rec_item_emb, pos_item)
+        # user_scores, item_scores = s1_user, s1_item
+        # user_scores = torch.stack([s1_user, s2_user, s3_user, s4_user]).mean(dim=0)
+        # item_scores = torch.stack([s1_item, s2_item, s3_item, s4_item]).mean(dim=0)
+        # user_fn_idx = self.fn_detection(user_scores, self.fnk)
+        # item_fn_idx = self.fn_detection(item_scores, self.fnk)
 
         rec_loss =self.create_bpr_loss(user_emb, pos_item_emb, neg_item_emb)
         batch_loss = rec_loss + self.l2_reg_loss(self.decay, user_emb, pos_item_emb)
-        cl_loss = self.cl_rate * self.cal_cl_loss([user, pos_item], user_fn_idx, item_fn_idx)
+        cl_loss = self.cl_rate * self.cal_cl_loss([user, pos_item], rec_user_emb, rec_item_emb, s_user_view1, s_item_view1, s_user_view2, s_item_view2, s_user_view3, s_item_view3, s_user_view4, s_item_view4)
 
 
         return batch_loss + cl_loss
@@ -193,46 +192,95 @@ class M1(nn.Module):
             emb_loss += torch.norm(emb, p=2)
         return emb_loss * reg
     
-    def cal_cl_loss(self, idx, user_fn_idx, item_fn_idx):
+    def cal_cl_loss(self, idx, rec_user_emb, rec_item_emb, s_user_view1, s_item_view1, s_user_view2, s_item_view2, s_user_view3, s_item_view3, s_user_view4, s_item_view4):
         u_idx = torch.unique(torch.LongTensor(idx[0].cpu()).type(torch.long)).to(self.device)
         i_idx = torch.unique(torch.LongTensor(idx[1].cpu()).type(torch.long)).to(self.device)
         user_view1, item_view1 = self.generate()
         user_view2, item_view2 = self.generate()
         # user_fn_idx : [batch_size, top-k]
-        user_fn = user_view2[user_fn_idx,:]
-        item_fn = item_view2[item_fn_idx,:]
+        s1_user = self.get_user_sim_score(s_user_view1, user_view2, u_idx)
+        s2_user = self.get_user_sim_score(s_user_view2, user_view2, u_idx)
+        s3_user = self.get_user_sim_score(s_user_view3, user_view2, u_idx)
+        s4_user = self.get_user_sim_score(s_user_view4, user_view2, u_idx)
+        s1_item = self.get_item_sim_score(s_item_view1, item_view2, i_idx)
+        s2_item = self.get_item_sim_score(s_item_view2, item_view2, i_idx)
+        s3_item = self.get_item_sim_score(s_item_view3, item_view2, i_idx)
+        s4_item = self.get_item_sim_score(s_item_view4, item_view2, i_idx)
+        # user_scores, _ = torch.stack([s1_user, s2_user, s3_user, s4_user]).max(dim=0)
+        # item_scores, _ = torch.stack([s1_item, s2_item, s3_item, s4_item]).max(dim=0)
+        user_scores = torch.stack([s1_user, s2_user, s3_user, s4_user]).mean(dim=0)
+        item_scores = torch.stack([s1_item, s2_item, s3_item, s4_item]).mean(dim=0)
+    
+        user_fn_mask = self.fn_detection(user_scores, self.fnk)
+        item_fn_mask = self.fn_detection(item_scores, self.fnk)
+        # user_fn = user_view2[user_fn_idx,:]
+        # item_fn = item_view2[item_fn_idx,:]
 
-        user_cl_loss = self.InfoNCE(user_view1[u_idx], user_view2[u_idx], user_fn, self.temp)
-        item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], item_fn, self.temp)
+        user_cl_loss = self.InfoNCE(user_view1[u_idx], user_view2[u_idx], user_fn_mask, self.temp)
+        item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], item_fn_mask, self.temp)
         return user_cl_loss + item_cl_loss
     
+    def InfoNCE(self, view1, view2, mask, temperature, b_cos=True):
+        if b_cos:
+            view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
+        '''original cl loss'''
+        pos_score = (view1 * view2).sum(dim=-1)
+        pos_score = torch.exp(pos_score / temperature)
+        ttl_score = torch.matmul(view1, view2.transpose(0, 1))
+        '''FN elimination'''
+        mask = torch.ones(ttl_score.shape).cuda() - mask
+        ttl_score = torch.exp((ttl_score * mask) / temperature).sum(dim=1)
+        cl_loss = -torch.log(pos_score / ttl_score+10e-6)
+        return torch.mean(cl_loss)
+        # pos_score = (view1 * view2).sum(dim=-1)
+        # pos_score = torch.exp(pos_score / temperature)
+        # ttl_score = torch.matmul(view1, view2.transpose(0, 1))
+        # ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
+        # cl_loss = -torch.log(pos_score / ttl_score+10e-6)
+        # return torch.mean(cl_loss)
+        # ori_pos_score = (view1 * view2).sum(dim=-1)
+        # ori_numerator = torch.exp(ori_pos_score / temperature)
+        # ori_ttl_score = torch.matmul(view1, view2.transpose(0,1))
+        # ori_ttl_score = torch.exp(ori_ttl_score / temperature).sum(dim=1)
+        # ori_cl_loss = -torch.log(ori_numerator / ori_ttl_score+10e-6)
+        # '''maksed cl loss'''
+        # ttl_score = torch.matmul(view1, view2.transpose(0,1))
+        # pos_score = (ttl_score * mask).sum(dim=-1)
+        # numerator = torch.exp(pos_score / temperature)
+        # denominator_mask = torch.ones(ttl_score.shape).cuda() - (ttl_score * mask)
+        # denominator = torch.exp((ttl_score * denominator_mask) / temperature).sum(dim=1)
+        # cl_loss = -torch.log(numerator / denominator+10e-6)
+        
+        # cl_loss = (ori_cl_loss + cl_loss) / 2
+        
+        # return torch.mean(cl_loss)
+
+        # pos_score = (view1 * view2).sum(dim=-1)
+        # pos_score = torch.exp(pos_score / temperature)
+        # ttl_score = torch.matmul(view1, view2.transpose(0, 1))
+        # ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
+        # cl_loss = -torch.log(pos_score / ttl_score+10e-6)
+        # print('cl loss : ', cl_loss)
+        # for i in range(self.fnk):
+        #     fn_view = fn[:,i,:] # [batch_size, emb_size]
+        #     pos_score = (view1 * fn_view).sum(dim=-1)
+        #     pos_score = torch.exp(pos_score / temperature)
+        #     fn_cl_loss = -torch.log(pos_score / ttl_score+10e-6)
+        #     # print('fn cl loss : ', fn_cl_loss)
+        #     cl_loss += fn_cl_loss
+        # cl_loss/=(1+self.fnk)
+            
+        # return torch.mean(cl_loss)
+
     # def InfoNCE(self, view1, view2, fn, temperature, b_cos=True):
     #     if b_cos:
-    #         view1, view2, fn = F.normalize(view1, dim=1), F.normalize(view2, dim=1), F.normalize(fn, dim=2)
+    #         view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
     #     pos_score = (view1 * view2).sum(dim=-1)
     #     pos_score = torch.exp(pos_score / temperature)
     #     ttl_score = torch.matmul(view1, view2.transpose(0, 1))
     #     ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
     #     cl_loss = -torch.log(pos_score / ttl_score+10e-6)
-    #     for i in range(fn.shape[1]):
-    #         fn_view = fn[:,i,:] # [batch_size, emb_size]
-    #         pos_score = (view1 * fn_view).sum(dim=-1)
-    #         pos_score = torch.exp(pos_score / temperature)
-    #         fn_cl_loss = -torch.log(pos_score / ttl_score+10e-6)
-    #         cl_loss += fn_cl_loss
-    #     cl_loss/=(1+self.fnk)
-            
     #     return torch.mean(cl_loss)
-
-    def InfoNCE(self, view1, view2, fn, temperature, b_cos=True):
-        if b_cos:
-            view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
-        pos_score = (view1 * view2).sum(dim=-1)
-        pos_score = torch.exp(pos_score / temperature)
-        ttl_score = torch.matmul(view1, view2.transpose(0, 1))
-        ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
-        cl_loss = -torch.log(pos_score / ttl_score+10e-6)
-        return torch.mean(cl_loss)
     
     def create_support_set(self):
         s_user_view1, s_item_view1 = self.generate()  # [n_user,emb_size]
@@ -241,24 +289,40 @@ class M1(nn.Module):
         s_user_view4, s_item_view4 = self.generate()
         return s_user_view1, s_item_view1, s_user_view2, s_item_view2, s_user_view3, s_item_view3, s_user_view4, s_item_view4
     
-    def get_user_sim_score(self, support_user_view, user_gcn_emb, idx):
-        u_idx = torch.unique(torch.LongTensor(idx.cpu()).type(torch.long)).to(self.device)
+    def get_user_sim_score(self, support_user_view, user_gcn_emb, u_idx):
+        '''regularization'''
+        support_user_view, user_gcn_emb = F.normalize(support_user_view, dim=1), F.normalize(user_gcn_emb, dim=1)
+        # u_idx = torch.unique(torch.LongTensor(idx.cpu()).type(torch.long)).to(self.device)
         # support view : [n_user, emb_size]
         # item_gcn_emb : [n_item, emb_size]
+        # score = torch.matmul(support_user_view[u_idx], support_user_view[u_idx].t())
         score = torch.matmul(support_user_view[u_idx], user_gcn_emb[u_idx].t())
         return score
 
-    def get_item_sim_score(self, support_item_view, item_gcn_emb, idx):
-        i_idx = torch.unique(torch.LongTensor(idx.cpu()).type(torch.long)).to(self.device)
+    def get_item_sim_score(self, support_item_view, item_gcn_emb, i_idx):
+        '''regularization'''
+        support_item_view, item_gcn_emb = F.normalize(support_item_view, dim=1), F.normalize(item_gcn_emb, dim=1)
+        # i_idx = torch.unique(torch.LongTensor(idx.cpu()).type(torch.long)).to(self.device)
+        # score = torch.matmul(support_item_view[i_idx], support_item_view[i_idx].t())
         score = torch.matmul(support_item_view[i_idx], item_gcn_emb[i_idx].t())
         return score
     
     def fn_detection(self, score, k):
         # FN이라고 판단한 node의 index를 return하는 함수
-        '''top-k strategy'''
+        '''top-k strategy
+           정렬했을 때 상위 k개에 해당하는 index 위치에만 binary masking'''
         sorted_score, indices = torch.sort(score, 1, descending=True)
-        topk_mask = indices[:,1:k+1]
+        # print('sorted user 내적 값 : ', sorted_score[0])
+        topk_mask = indices[:,1:k+1].unsqueeze(dim=-1)
+        batch_ind = torch.arange(indices.shape[0]).view([-1,1,1]).repeat([1,k,1]).cuda()
+        taken_ind = torch.cat([batch_ind, topk_mask], -1).view([-1,2])
+        sparse_mask = torch.sparse_coo_tensor(list(zip(*taken_ind)), torch.ones((len(taken_ind))), (score.shape[0],score.shape[1]))
+        dense_mask = sparse_mask.to_dense().cuda()
         '''threshold strategy'''
-        return topk_mask
+        # return dense_mask
+        # normalized_score = F.normalize(score, dim=1)
+        # print('normalized score [0] : ', torch.sort(normalized_score[0], descending=True))
+        t_mask = torch.where(score>=0.9, 1, 0).cuda()
+        return dense_mask * t_mask
         
 
