@@ -117,10 +117,7 @@ def get_feed_dict(train_entity_pairs, train_pos_set, start, end, n):
     #                                                    n_negs*K)).to(device)
     feed_dict['neg_items'] = torch.LongTensor(sampling(entity_pairs,
                                                        train_pos_set)).to(device)
-    # neg_candidate_users = user_negative_sampling(entity_pairs, n_negs)
-    # neg_candidate_items = item_negative_sampling(entity_pairs, n_negs)
     return feed_dict
-    # return feed_dict, neg_candidate_users, neg_candidate_items
 
 '''MGCL negative candidate selection'''
 def user_negative_sampling(n):
@@ -182,6 +179,7 @@ if __name__ == '__main__':
     K = args.K
 
     """define model"""
+    from modules.X2SimGCL import X2SimGCL
     from modules.XmixSimGCL import XmixSimGCL
     from modules.MixSimGCL import MixSimGCL
     from modules.XSimGCL import XSimGCL
@@ -202,6 +200,9 @@ if __name__ == '__main__':
     elif args.gnn == 'xmgcl':
         print('X Mix Simple GCL model setup')
         model = XmixSimGCL(n_params, args, norm_mat).to(device)
+    elif args.gnn == 'x2gcl':
+        print('X2SimGCL model setup')
+        model = X2SimGCL(n_params, args, norm_mat).to(device)
     else:
         model = NGCF(n_params, args, norm_mat).to(device)
 
@@ -211,6 +212,7 @@ if __name__ == '__main__':
     cur_best_pre_0 = 0
     stopping_step = 0
     should_stop = False
+    t = time()
 
     print("start training ...")
 
@@ -243,11 +245,6 @@ if __name__ == '__main__':
                                   s, s + args.batch_size,
                                   n_negs)
 
-            # batch, neg_candidate_users, neg_candidate_items = get_feed_dict(train_cf_,
-            #                                                   user_dict['train_user_set'],
-            #                                                   s, s + args.batch_size, 1,
-            #                                                   n_negs)
-            
             '''other model setup'''
             # batch_loss = model(batch)
 
@@ -263,9 +260,8 @@ if __name__ == '__main__':
 
         if epoch % 5 == 0:
             """testing"""
-
             train_res = PrettyTable()
-            train_res.field_names = ["Epoch", "training time(s)", "tesing time(s)", "Loss", "recall", "ndcg", 'novelty', "precision", "hit_ratio"]
+            train_res.field_names = ["Epoch", "training time(s)", "tesing time(s)", "Loss", "recall", "ndcg", "precision", "hit_ratio"]
 
             model.eval()
             test_s_t = time()
@@ -273,7 +269,7 @@ if __name__ == '__main__':
             test_e_t = time()
             train_res.add_row(
                 [epoch, train_e_t - train_s_t, test_e_t - test_s_t, loss.item(), test_ret['recall'], test_ret['ndcg'],
-                 test_ret['novelty'], test_ret['precision'], test_ret['hit_ratio']])
+                 test_ret['precision'], test_ret['hit_ratio']])
 
             if user_dict['valid_user_set'] is None:
                 valid_ret = test_ret
@@ -283,14 +279,14 @@ if __name__ == '__main__':
                 test_e_t = time()
                 train_res.add_row(
                     [epoch, train_e_t - train_s_t, test_e_t - test_s_t, loss.item(), valid_ret['recall'], valid_ret['ndcg'],
-                     valid_ret['novelty'], valid_ret['precision'], valid_ret['hit_ratio']])
+                     valid_ret['precision'], valid_ret['hit_ratio']])
             print(train_res)
 
             # *********************************************************
             # early stopping when cur_best_pre_0 is decreasing for 10 successive steps.
             cur_best_pre_0, stopping_step, should_stop = early_stopping(valid_ret['recall'][0], cur_best_pre_0,
                                                                         stopping_step, expected_order='acc',
-                                                                        flag_step=3)
+                                                                        flag_step=10)
             if should_stop:
                 break
 
@@ -302,3 +298,46 @@ if __name__ == '__main__':
             print('using time %.4fs, training loss at epoch %d: %.4f' % (train_e_t - train_s_t, epoch, loss.item()))
 
     print('early stopping at %d, recall@20:%.4f' % (epoch, cur_best_pre_0))
+    
+        # '''원래 code'''
+    #     if epoch % 5 == 0:
+    #         """testing"""
+
+    #         train_res = PrettyTable()
+    #         train_res.field_names = ["Epoch", "training time(s)", "tesing time(s)", "Loss", "recall", "ndcg", 'novelty', "precision", "hit_ratio"]
+
+    #         model.eval()
+    #         test_s_t = time()
+    #         test_ret = test(model, user_dict, n_params, deg_item, mode='test')
+    #         test_e_t = time()
+    #         train_res.add_row(
+    #             [epoch, train_e_t - train_s_t, test_e_t - test_s_t, loss.item(), test_ret['recall'], test_ret['ndcg'],
+    #              test_ret['novelty'], test_ret['precision'], test_ret['hit_ratio']])
+
+    #         if user_dict['valid_user_set'] is None:
+    #             valid_ret = test_ret
+    #         else:
+    #             test_s_t = time()
+    #             valid_ret = test(model, user_dict, n_params, deg_item, mode='valid')
+    #             test_e_t = time()
+    #             train_res.add_row(
+    #                 [epoch, train_e_t - train_s_t, test_e_t - test_s_t, loss.item(), valid_ret['recall'], valid_ret['ndcg'],
+    #                  valid_ret['novelty'], valid_ret['precision'], valid_ret['hit_ratio']])
+    #         print(train_res)
+
+    #         # *********************************************************
+    #         # early stopping when cur_best_pre_0 is decreasing for 10 successive steps.
+    #         cur_best_pre_0, stopping_step, should_stop = early_stopping(valid_ret['recall'][0], cur_best_pre_0,
+    #                                                                     stopping_step, expected_order='acc',
+    #                                                                     flag_step=3)
+    #         if should_stop:
+    #             break
+
+    #         """save weight"""
+    #         if valid_ret['recall'][0] == cur_best_pre_0 and args.save:
+    #             torch.save(model.state_dict(), args.out_dir + 'model_' + '.ckpt')
+    #     else:
+    #         # logging.info('training loss at epoch %d: %f' % (epoch, loss.item()))
+    #         print('using time %.4fs, training loss at epoch %d: %.4f' % (train_e_t - train_s_t, epoch, loss.item()))
+
+    # print('early stopping at %d, recall@20:%.4f' % (epoch, cur_best_pre_0))

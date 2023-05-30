@@ -31,12 +31,6 @@ def generate_sampled_graph(directory):
 
     return sampled_graph
 
-def read_cf_amazon(file_name):
-    return np.loadtxt(file_name, dtype=np.int32)  # [u_id, i_id]
-
-def read_cf_movielens(file_name):
-    return np.loadtxt(file_name, dtype=np.int32)
-
 def read_cf_gowalla_train(directory):
     sampled_graph = generate_sampled_graph(directory)
     print(sampled_graph)
@@ -56,6 +50,31 @@ def read_cf_gowalla_train(directory):
             #     all_pos_ids.append(i_id)
     return np.array(inter_mat), list(set(all_pos_ids))
 
+def read_cf_yelp2018_train(directory):
+    sampled_graph = generate_sampled_graph(directory)
+    print(sampled_graph)
+
+    inter_mat = list()
+    lines = open(sampled_graph, "r").readlines()
+    for l in lines:
+        tmps = l.strip()
+        inters = [int(i) for i in tmps.split(" ")]
+        u_id, pos_ids = inters[0], inters[1:]
+        pos_ids = list(set(pos_ids))
+        for i_id in pos_ids:
+            inter_mat.append([u_id, i_id])
+    return np.array(inter_mat)
+
+
+def read_cf_amazon(file_name):
+    data = np.loadtxt(file_name, dtype=np.int32)
+    return data, data[:,1]
+    # return np.loadtxt(file_name, dtype=np.int32)  # [u_id, i_id]
+
+def read_cf_movielens(file_name):
+    return np.loadtxt(file_name, dtype=np.int32)
+
+
 
 def read_cf_gowalla(file_name):
     inter_mat = list()
@@ -71,21 +90,6 @@ def read_cf_gowalla(file_name):
             all_pos_ids.append(i_id)
     return np.array(inter_mat), list(set(all_pos_ids))
 
-
-def read_cf_yelp2018_train(directory):
-    sampled_graph = generate_sampled_graph(directory)
-    print(sampled_graph)
-
-    inter_mat = list()
-    lines = open(sampled_graph, "r").readlines()
-    for l in lines:
-        tmps = l.strip()
-        inters = [int(i) for i in tmps.split(" ")]
-        u_id, pos_ids = inters[0], inters[1:]
-        pos_ids = list(set(pos_ids))
-        for i_id in pos_ids:
-            inter_mat.append([u_id, i_id])
-    return np.array(inter_mat)
 
 def read_cf_yelp2018(file_name):
     inter_mat = list()
@@ -167,21 +171,6 @@ def count_item_degree(all_pos_ids, inter_mat):
         deg_item[tup[1]]+=1
     return deg_item
 
-
-    # inter_mat = list()
-    # lines = open(sampled_graph, "r").readlines()
-    # count_item_deg = {}
-    # for l in lines:
-    #     tmps = l.strip()
-    #     inters = [int(i) for i in tmps.split(" ")] # 0 12 15 28 589 ---
-    #     u_id, pos_ids = inters[0], inters[1:]
-    #     pos_ids = list(set(pos_ids))
-    #     for i_id in pos_ids:
-    #         count_item_deg[i_id]
-            # inter_mat.append([u_id, i_id])
-        
-    # return np.array(inter_mat)
-
 def load_data(model_args, sample_method=0):
     global args, dataset
     args = model_args
@@ -206,6 +195,7 @@ def load_data(model_args, sample_method=0):
             read_cf = read_cf_amazon
 
     print('reading train and test user-item set ...')
+
     if sample_method==1:
         train_cf, all_pos_ids = read_cf(directory)
         deg_item = count_item_degree(all_pos_ids, train_cf)
@@ -216,7 +206,7 @@ def load_data(model_args, sample_method=0):
         test_cf, all_pos_ids = read_cf(directory + 'test.txt')
         
     if args.dataset!='gowalla' and args.dataset != 'yelp2018' and args.dataset != 'movielens':
-        valid_cf = read_cf(directory + 'valid.txt')
+        valid_cf, all_pos_ids = read_cf(directory + 'valid.txt')
     else:
         valid_cf = test_cf
 

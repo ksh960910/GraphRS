@@ -70,6 +70,259 @@ def ranklist_by_sorted(user_pos_test, test_items, rating, Ks):
     auc = get_auc(item_score, user_pos_test)
     return r, auc, K_max_item_score
 
+# '''novelty뺀 코드'''
+# def get_performance(user_pos_test, r, auc, Ks, k_max_items):
+#     precision, recall, ndcg, hit_ratio = [], [], [], []
+
+#     test_users = list(test_user_set.keys())
+#     n_test_users = len(test_users)
+
+#     for K in Ks:
+#         precision.append(precision_at_k(r, K))
+#         recall.append(recall_at_k(r, K, len(user_pos_test)))
+#         ndcg.append(ndcg_at_k(r, K, user_pos_test))
+#         hit_ratio.append(hit_at_k(r, K))
+
+#     return {'recall': np.array(recall), 'precision': np.array(precision),
+#             'ndcg': np.array(ndcg), 'hit_ratio': np.array(hit_ratio), 'auc': auc}
+
+# def test_one_user(x):
+#     # user u's ratings for user u
+#     rating = x[0]
+#     # uid
+#     u = x[1]
+#     # user u's items in the training set
+#     try:
+#         training_items = train_user_set[u]
+#     except Exception:
+#         training_items = []
+
+#     # user u's items in the test set
+#     user_pos_test = test_user_set[u]
+
+#     all_items = set(range(0, n_items))
+#     test_items = list(all_items - set(training_items))
+
+#     if args.test_flag == 'part':
+#         r, auc, k_max_items = ranklist_by_heapq(user_pos_test, test_items, rating, Ks)
+#     else:
+#         r, auc, k_max_items = ranklist_by_sorted(user_pos_test, test_items, rating, Ks)
+
+#     return get_performance(user_pos_test, r, auc, Ks, k_max_items)
+
+
+# def test(model, user_dict, n_params, deg_item, mode='test'):
+#     result = {'precision': np.zeros(len(Ks)),
+#               'recall': np.zeros(len(Ks)),
+#               'ndcg': np.zeros(len(Ks)),
+#               'hit_ratio': np.zeros(len(Ks)),
+#               'auc': 0.}
+
+#     global n_users, n_items
+#     n_items = n_params['n_items']
+#     n_users = n_params['n_users']
+
+#     global train_user_set, test_user_set
+#     train_user_set = user_dict['train_user_set']
+#     if mode == 'test':
+#         test_user_set = user_dict['test_user_set']
+#     else:
+#         test_user_set = user_dict['valid_user_set']
+#         if test_user_set is None:
+#             test_user_set = user_dict['test_user_set']
+
+#     pool = multiprocessing.Pool(cores)
+
+#     u_batch_size = BATCH_SIZE
+#     i_batch_size = BATCH_SIZE
+
+#     test_users = list(test_user_set.keys())
+#     n_test_users = len(test_users)
+#     n_user_batchs = n_test_users // u_batch_size + 1
+
+#     count = 0
+#     #other setup
+#     # user_gcn_emb, item_gcn_emb = model.generate(perturb=False)
+#     user_gcn_emb, item_gcn_emb = model.generate()
+
+#     #xmgcl setup
+#     # user_gcn_emb, item_gcn_emb, _, _ = model.generate(perturb=False)
+
+#     for u_batch_id in range(n_user_batchs):
+#         start = u_batch_id * u_batch_size
+#         end = (u_batch_id + 1) * u_batch_size
+
+#         user_list_batch = test_users[start:end]
+#         user_batch = torch.LongTensor(np.array(user_list_batch)).to(device)
+#         u_g_embeddings = user_gcn_emb[user_batch]
+
+#         if batch_test_flag:
+#             # batch-item test
+#             n_item_batchs = n_items // i_batch_size + 1
+#             rate_batch = np.zeros(shape=(len(user_batch), n_items))
+
+#             i_count = 0
+#             for i_batch_id in range(n_item_batchs):
+#                 i_start = i_batch_id * i_batch_size
+#                 i_end = min((i_batch_id + 1) * i_batch_size, n_items)
+
+#                 item_batch = torch.LongTensor(np.array(range(i_start, i_end))).view(i_end-i_start).to(device)
+#                 i_g_embddings = item_gcn_emb[item_batch]
+
+#                 i_rate_batch = model.rating(u_g_embeddings, i_g_embddings).detach().cpu()
+#                 rate_batch[:, i_start:i_end] = i_rate_batch
+#                 i_count += i_rate_batch.shape[1]
+
+#             assert i_count == n_items
+#         else:
+#             # all-item test
+#             item_batch = torch.LongTensor(np.array(range(0, n_items))).view(n_items, -1).to(device)
+#             i_g_embddings = item_gcn_emb[item_batch]
+#             rate_batch = model.rating(u_g_embeddings, i_g_embddings).detach().cpu()
+
+#         user_batch_rating_uid = zip(rate_batch, user_list_batch)
+#         batch_result = pool.map(test_one_user, user_batch_rating_uid)
+#         count += len(batch_result)
+
+#         for re in batch_result:
+#             result['precision'] += re['precision']/n_test_users
+#             result['recall'] += re['recall']/n_test_users
+#             result['ndcg'] += re['ndcg']/n_test_users
+#             result['hit_ratio'] += re['hit_ratio']/n_test_users
+#             result['auc'] += re['auc']/n_test_users
+
+#     assert count == n_test_users
+#     pool.close()
+#     return result
+# '''novelty뺀 코드'''
+
+
+# def get_performance(user_pos_test, r, auc, Ks, deg_item, k_max_items):
+#     novelty, precision, recall, ndcg, hit_ratio = [], [], [], [], []
+
+#     test_users = list(test_user_set.keys())
+#     n_test_users = len(test_users)
+
+#     for K in Ks:
+#         precision.append(precision_at_k(r, K))
+#         recall.append(recall_at_k(r, K, len(user_pos_test)))
+#         ndcg.append(ndcg_at_k(r, K, user_pos_test))
+#         hit_ratio.append(hit_at_k(r, K))
+
+#     return {'recall': np.array(recall), 'precision': np.array(precision),
+#             'ndcg': np.array(ndcg), 'hit_ratio': np.array(hit_ratio), 'auc': auc}
+
+# def test_one_user(deg_item, x):
+#     # user u's ratings for user u
+#     rating = x[0]
+#     # uid
+#     u = x[1]
+#     # user u's items in the training set
+#     try:
+#         training_items = train_user_set[u]
+#     except Exception:
+#         training_items = []
+
+#     # user u's items in the test set
+#     user_pos_test = test_user_set[u]
+
+#     all_items = set(range(0, n_items))
+#     test_items = list(all_items - set(training_items))
+
+#     if args.test_flag == 'part':
+#         r, auc, k_max_items = ranklist_by_heapq(user_pos_test, test_items, rating, Ks)
+#     else:
+#         r, auc, k_max_items = ranklist_by_sorted(user_pos_test, test_items, rating, Ks)
+
+#     return get_performance(user_pos_test, r, auc, Ks, deg_item, k_max_items)
+
+
+# def test(model, user_dict, n_params, deg_item, mode='test'):
+#     result = {'precision': np.zeros(len(Ks)),
+#               'recall': np.zeros(len(Ks)),
+#               'ndcg': np.zeros(len(Ks)),
+#               'novelty' : np.zeros(len(Ks)),
+#               'hit_ratio': np.zeros(len(Ks)),
+#               'auc': 0.}
+
+#     global n_users, n_items
+#     n_items = n_params['n_items']
+#     n_users = n_params['n_users']
+
+#     global train_user_set, test_user_set
+#     train_user_set = user_dict['train_user_set']
+#     if mode == 'test':
+#         test_user_set = user_dict['test_user_set']
+#     else:
+#         test_user_set = user_dict['valid_user_set']
+#         if test_user_set is None:
+#             test_user_set = user_dict['test_user_set']
+
+#     pool = multiprocessing.Pool(cores)
+
+#     u_batch_size = BATCH_SIZE
+#     i_batch_size = BATCH_SIZE
+
+#     test_users = list(test_user_set.keys())
+#     n_test_users = len(test_users)
+#     n_user_batchs = n_test_users // u_batch_size + 1
+
+#     count = 0
+#     #other setup
+#     # user_gcn_emb, item_gcn_emb = model.generate(perturb=False)
+#     user_gcn_emb, item_gcn_emb = model.generate()
+#     #xmgcl setup
+#     # user_gcn_emb, item_gcn_emb, _, _ = model.generate(perturb=False)
+
+#     for u_batch_id in range(n_user_batchs):
+#         start = u_batch_id * u_batch_size
+#         end = (u_batch_id + 1) * u_batch_size
+
+#         user_list_batch = test_users[start:end]
+#         user_batch = torch.LongTensor(np.array(user_list_batch)).to(device)
+#         u_g_embeddings = user_gcn_emb[user_batch]
+
+#         if batch_test_flag:
+#             # batch-item test
+#             n_item_batchs = n_items // i_batch_size + 1
+#             rate_batch = np.zeros(shape=(len(user_batch), n_items))
+
+#             i_count = 0
+#             for i_batch_id in range(n_item_batchs):
+#                 i_start = i_batch_id * i_batch_size
+#                 i_end = min((i_batch_id + 1) * i_batch_size, n_items)
+
+#                 item_batch = torch.LongTensor(np.array(range(i_start, i_end))).view(i_end-i_start).to(device)
+#                 i_g_embddings = item_gcn_emb[item_batch]
+
+#                 i_rate_batch = model.rating(u_g_embeddings, i_g_embddings).detach().cpu()
+#                 rate_batch[:, i_start:i_end] = i_rate_batch
+#                 i_count += i_rate_batch.shape[1]
+
+#             assert i_count == n_items
+#         else:
+#             # all-item test
+#             item_batch = torch.LongTensor(np.array(range(0, n_items))).view(n_items, -1).to(device)
+#             i_g_embddings = item_gcn_emb[item_batch]
+#             rate_batch = model.rating(u_g_embeddings, i_g_embddings).detach().cpu()
+
+#         user_batch_rating_uid = zip(rate_batch, user_list_batch)
+#         # 추가부분
+#         func = partial(test_one_user, deg_item)
+#         batch_result = pool.map(func, user_batch_rating_uid)
+#         count += len(batch_result)
+
+#         for re in batch_result:
+#             result['precision'] += re['precision']/n_test_users
+#             result['recall'] += re['recall']/n_test_users
+#             result['ndcg'] += re['ndcg']/n_test_users
+#             result['hit_ratio'] += re['hit_ratio']/n_test_users
+#             result['auc'] += re['auc']/n_test_users
+
+#     assert count == n_test_users
+#     pool.close()
+#     return result
+
 
 def get_performance(user_pos_test, r, auc, Ks, deg_item, k_max_items):
     novelty, precision, recall, ndcg, hit_ratio = [], [], [], [], []
@@ -145,8 +398,8 @@ def test(model, user_dict, n_params, deg_item, mode='test'):
 
     count = 0
     #other setup
+    # user_gcn_emb, item_gcn_emb = model.generate(perturb=False)
     # user_gcn_emb, item_gcn_emb = model.generate()
-
     #xmgcl setup
     user_gcn_emb, item_gcn_emb, _, _ = model.generate(perturb=False)
 

@@ -21,6 +21,9 @@ def parse_args():
     parser.add_argument('--lamb', type=float, default=0.2, help='Lambda of CL Loss')
     parser.add_argument('--eps', type=float, default=0.2, help='epsilon from noise vectors')
     parser.add_argument('--cll', type=int, default=1, help='number of CL layer')
+    parser.add_argument('--beta', type=float, default=0.8, help='weight of mixed element-wise multiplied embeddings')
+    parser.add_argument('--fnk', type=int, default=1, help='top-k strategy for FN')
+    parser.add_argument('--threshold', type=float, default=0.8, help='threshold strategy for FN')
 
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size')
     parser.add_argument('--test_batch_size', type=int, default=2048, help='batch size in evaluation phase')

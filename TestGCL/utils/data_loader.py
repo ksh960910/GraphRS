@@ -16,7 +16,38 @@ valid_user_set = defaultdict(list)
 def read_cf_amazon(file_name):
     return np.loadtxt(file_name, dtype=np.int32)  # [u_id, i_id]
 
+def read_cf_ali(file_name):
+    return np.loadtxt(file_name, dtype=np.int32)
+
+# def read_cf_gowalla(file_name):
+#     inter_mat = list()
+#     neighbor_dict = {}
+#     deg_dict = {}
+#     lines = open(file_name, 'r').readlines()
+#     for l in lines:
+#         tmps = l.strip()
+#         inters = [int(i) for i in tmps.split(' ')]
+#         u_id, pos_ids = inters[0], inters[1:]
+#         neighbor_dict[u_id] = pos_ids
+#         deg_dict[u_id] = len(pos_ids)
+#         pos_ids = list(set(pos_ids))
+#         for i_id in pos_ids:
+#             inter_mat.append([u_id, i_id])
+#     return np.array(inter_mat), neighbor_dict, deg_dict
+
 def read_cf_gowalla(file_name):
+    inter_mat = list()
+    lines = open(file_name, 'r').readlines()
+    for l in lines:
+        tmps = l.strip()
+        inters = [int(i) for i in tmps.split(' ')]
+        u_id, pos_ids = inters[0], inters[1:]
+        pos_ids = list(set(pos_ids))
+        for i_id in pos_ids:
+            inter_mat.append([u_id, i_id])
+    return np.array(inter_mat)
+
+def read_cf_book(file_name):
     inter_mat = list()
     lines = open(file_name, 'r').readlines()
     for l in lines:
@@ -46,7 +77,7 @@ def statistics(train_data, valid_data, test_data):
     n_users = max(max(train_data[:, 0]), max(valid_data[:, 0]), max(test_data[:, 0])) + 1
     n_items = max(max(train_data[:, 1]), max(valid_data[:, 1]), max(test_data[:, 1])) + 1
 
-    if dataset != 'yelp2018' and dataset!='gowalla':
+    if dataset != 'yelp2018' and dataset!='gowalla' and dataset!='amazon-book':
         n_items -= n_users
         # remap [n_users, n_users+n_items] to [0, n_items]
         train_data[:, 1] -= n_users
@@ -59,6 +90,8 @@ def statistics(train_data, valid_data, test_data):
         test_user_set[int(u_id)].append(int(i_id))
     for u_id, i_id in valid_data:
         valid_user_set[int(u_id)].append(int(i_id))
+
+        
 
 
 def build_sparse_graph(data_cf):
@@ -108,13 +141,19 @@ def load_data(model_args):
         read_cf = read_cf_yelp2018
     elif dataset == 'gowalla':
         read_cf = read_cf_gowalla
-    else:
+    elif dataset == 'amazon':
         read_cf = read_cf_amazon
+    elif dataset == 'amazon-book':
+        read_cf = read_cf_book
+    else:
+        read_cf = read_cf_ali
 
     print('reading train and test user-item set ...')
+    # train_cf, neighbor_dict, deg_dict = read_cf(directory + 'train.txt')
+    # test_cf, neighbor_dict, deg_dict = read_cf(directory + 'test.txt')
     train_cf = read_cf(directory + 'train.txt')
     test_cf = read_cf(directory + 'test.txt')
-    if args.dataset != 'yelp2018' and args.dataset!='gowalla':
+    if args.dataset != 'yelp2018' and args.dataset!='gowalla' and args.dataset!='amazon-book':
         valid_cf = read_cf(directory + 'valid.txt')
     else:
         valid_cf = test_cf
@@ -129,9 +168,10 @@ def load_data(model_args):
     }
     user_dict = {
         'train_user_set': train_user_set,
-        'valid_user_set': valid_user_set if args.dataset != 'yelp2018' and args.dataset!='gowalla' else None,
+        'valid_user_set': valid_user_set if args.dataset != 'yelp2018' and args.dataset!='gowalla' and args.dataset!='amazon-book' else None,
         'test_user_set': test_user_set,
     }
 
     print('loading over ...')
+    # return train_cf, user_dict, n_params, norm_mat, neighbor_dict, deg_dict
     return train_cf, user_dict, n_params, norm_mat

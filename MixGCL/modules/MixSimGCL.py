@@ -258,7 +258,6 @@ class MixSimGCL(nn.Module):
     #     user_cl_loss = self.InfoNCE(user_view1[u_idx], user_view2[u_idx], self.temp)
     #     item_cl_loss = self.InfoNCE(item_view1[i_idx], item_view2[i_idx], self.temp)
     #     return user_cl_loss + item_cl_loss
-
     def InfoNCE(self, view1, view2, neg_view, temperature, b_cos=True):
         if b_cos:
             view1, view2, neg_view = F.normalize(view1, dim=1), F.normalize(view2, dim=1), F.normalize(neg_view, dim=1)
@@ -266,10 +265,25 @@ class MixSimGCL(nn.Module):
         pos_score = (view1 * view2).sum(dim=-1)
         pos_score = torch.exp(pos_score / temperature)
         '''서로 다른 view의 자신과 다른 노드끼리 내적값을 구할 수 있도록 matmul'''
+        t_score = torch.matmul(view1, view2.transpose(0,1))
+        t_score = torch.exp(t_score / temperature).sum(dim=1)
         ttl_score = torch.matmul(view1, neg_view.transpose(0, 1))
         ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
-        cl_loss = -torch.log(pos_score / ttl_score+10e-6)
+        cl_loss = -torch.log(pos_score / (ttl_score+t_score)+10e-6)
         return torch.mean(cl_loss)
+
+    '''원래 MixSimGCL Loss'''
+    # def InfoNCE(self, view1, view2, neg_view, temperature, b_cos=True):
+    #     if b_cos:
+    #         view1, view2, neg_view = F.normalize(view1, dim=1), F.normalize(view2, dim=1), F.normalize(neg_view, dim=1)
+    #     '''서로 다른 view의 자기자신 노드끼리 내적값을 구할 수 있도록 element-wise multiplication'''
+    #     pos_score = (view1 * view2).sum(dim=-1)
+    #     pos_score = torch.exp(pos_score / temperature)
+    #     '''서로 다른 view의 자신과 다른 노드끼리 내적값을 구할 수 있도록 matmul'''
+    #     ttl_score = torch.matmul(view1, neg_view.transpose(0, 1))
+    #     ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
+    #     cl_loss = -torch.log(pos_score / ttl_score+10e-6)
+    #     return torch.mean(cl_loss)
     # def InfoNCE(self, view1, view2, temperature, b_cos=True):
     #     if b_cos:
     #         view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
